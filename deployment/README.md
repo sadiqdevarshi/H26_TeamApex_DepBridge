@@ -13,7 +13,7 @@ git status --short --branch
 py -3.12 -m venv .venv  # Only if the virtual environment does not already exist.
 .\.venv\Scripts\python.exe -m pip install -e '.[dev,verification]'
 $env:DEPBRIDGE_PUBLIC_BASE_URL = 'http://127.0.0.1:8000'
-$env:DEPBRIDGE_FRONTEND_DIR = 'demo_frontend'
+$env:DEPBRIDGE_FRONTEND_DIR = 'frontend'
 .\.venv\Scripts\python.exe -X utf8 -m uvicorn depbridge_service.app:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
@@ -36,7 +36,7 @@ For the initial IP-only deployment, set these values in `/etc/depbridge/service.
 ```dotenv
 DEPBRIDGE_PUBLIC_BASE_URL=http://DROPLET_IP
 DEPBRIDGE_SITE_ADDRESS=:80
-DEPBRIDGE_FRONTEND_DIR=/app/demo_frontend
+DEPBRIDGE_FRONTEND_DIR=/app/frontend
 DEPBRIDGE_ENGINE_MODE=auto
 DEPBRIDGE_ALLOWED_REPOSITORIES=rishrek/LinkWatch
 DEPBRIDGE_MAX_PENDING_JOBS=8
@@ -50,13 +50,13 @@ Replace `DROPLET_IP` with the actual public IP. Allow inbound TCP 80 and restric
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml up -d --build
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml ps
 curl --fail http://DROPLET_IP/api/health
-curl --fail http://DROPLET_IP/static/start.html
+curl --fail http://DROPLET_IP/
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml logs --tail=100 api
 ```
 
-The integrated backup from engine commit `fdfd236` provides `demo_frontend/index.html` and `demo_frontend/static/start.html`; the Docker build copies it and the default image serves it. Open `/static/start.html` to submit a repository. No Node build is required. When the primary frontend is confirmed pushed and reviewed, merge it through Git and set `DEPBRIDGE_FRONTEND_DIR=/app/frontend` in the server environment file. Rebuild after merging either component. Restarted queued/running jobs become honest failures rather than silently resuming repository execution.
+The primary frontend from `origin/Frontend` at `c6cdbfc` is served with a service-owned live API adapter. Its static HTML/CSS/JS requires no Node build. Open `/` to submit a repository. Both primary and backup assets are copied into the image; the Dockerfile checks both. Set `DEPBRIDGE_FRONTEND_DIR=/app/demo_frontend` and recreate the API container to select the unchanged backup. The frontend's standalone mock simulation scripts are not loaded by the live primary report. Restarted queued/running jobs become honest failures rather than silently resuming execution.
 
-Compose uses `${DEPBRIDGE_FRONTEND_DIR:-/app/demo_frontend}` rather than hardcoding the primary folder. Use absolute container paths in the server file: `/app/demo_frontend` for the backup or `/app/frontend` for the primary. The Dockerfile copies the repository including the backup and checks that both backup HTML files exist before completing the build. Configuration changes require recreating the API container; they do not require copying files over a teammate's frontend.
+Compose uses `${DEPBRIDGE_FRONTEND_DIR:-/app/frontend}`. Use absolute container paths in the server file: `/app/frontend` for the primary or `/app/demo_frontend` for the backup. Configuration changes require recreating the API container, without overwriting any frontend files. External fonts/Tailwind used by the visual source need browser network access; the service adapter also supplies fallback layout CSS.
 
 ```sh
 # DigitalOcean server only: update after reviewed Git integration

@@ -9,7 +9,7 @@ services:
       - ${DEPBRIDGE_ENV_FILE:-/etc/depbridge/service.env}
     environment:
       DEPBRIDGE_DATA_DIR: /data
-      DEPBRIDGE_FRONTEND_DIR: ${DEPBRIDGE_FRONTEND_DIR:-/app/demo_frontend}
+      DEPBRIDGE_FRONTEND_DIR: ${DEPBRIDGE_FRONTEND_DIR:-/app/frontend}
     volumes:
       - depbridge_data:/data
     expose:

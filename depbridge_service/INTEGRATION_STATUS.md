@@ -2,7 +2,15 @@
 
 ## Latest integration checkpoint
 
-Engine `e78c3f1` and backup UI `fdfd236` were merged through Git into `service`. The primary `Frontend` branch was not merged. The backup is selected with `DEPBRIDGE_FRONTEND_DIR=demo_frontend` for local PowerShell and `/app/demo_frontend` inside the container. The user subsequently authorized finalizing and publishing this tested local integration to `main`, with remaining model/deployment gaps disclosed. Test counts below describe their recorded checkpoints; final checks are reported with the release commit.
+The primary frontend is now integrated from the exact confirmed branch `origin/Frontend`, commit `c6cdbfc`. The lowercase remote alias points to the same commit but collides on Windows; the integration used explicit ref fetches. The README-only merge conflict retained the reviewed service release documentation. Engine and frontend source remain identical to their imported commits.
+
+The live primary uses the teammate's visual shell with a service-owned v1 API adapter. Imported fixture data, timer-based verification and synthetic signature exports are not loaded. Primary entry is `/`; reports are `/reports/{analysis_id}`; Docker/Compose default to `/app/frontend`, with `/app/demo_frontend` retained as fallback. No Node build is required.
+
+Fresh primary-UI run: analysis `ana_0d8a89080bd7464abcd3ca894e570741`, comparison `ver_b24a5ac90a854a81b5bd5d1c4333b98d`, target revision `f52f3930c8e7c33d934ccf614955a38e26984bd5`. Browser submission and polling worked; selected installation and four focused cache checks completed as `supported`; real capsule and patch downloads succeeded. The report remains `partial`, `ai.state=not_run` because no server-side key is configured here. Full-suite and Linux verification remain untested. Final service/engine suites: **24 passed**; package build and Compose configuration checks pass. Docker image build and actual cloud hosting remain unverified.
+
+## Previous backup integration checkpoint
+
+Engine `e78c3f1` and backup UI `fdfd236` were merged through Git into `service`. At this earlier checkpoint the primary frontend had not yet been merged. The backup is selected with `DEPBRIDGE_FRONTEND_DIR=demo_frontend` for local PowerShell and `/app/demo_frontend` inside the container. The user authorized finalizing and publishing the tested local integration to `main`, with remaining model/deployment gaps disclosed. Historical test counts below describe their recorded checkpoints.
 
 A new analysis `ana_4489bda41f1a45598b5170f085ea18bd` was submitted from `/static/start.html` and resolved LinkWatch revision `f52f3930c8e7c33d934ccf614955a38e26984bd5`. Its new comparison `ver_b6050cc9326e4f2ebcbdb17887e5fa8c` completed as `supported` for the selected installations and four focused cache checks. Capsule and patch downloads succeeded through the actual browser UI. The capsule contains actual argument vectors in `commands.json` and the captured generated runner. The report shows the real partial state and model-unavailable message; it does not substitute mock data.
 

@@ -12,14 +12,14 @@ This is the team application repository. The initial analysis target is [rishrek
 |---|---|
 | FastAPI, CLI and persistent jobs | Implemented; one server process and one serial job worker |
 | Actual analysis | LinkWatch revision `f52f3930c8e7c33d934ccf614955a38e26984bd5`; 14 declared dependencies, three flagged dependencies |
-| Browser UI | Integrated backup in `demo_frontend/`; submission, polling and comparison tested |
+| Browser UI | Primary `frontend/` connected to live API by a service-owned adapter; `demo_frontend/` retained as fallback |
 | appdirs → platformdirs comparison | Both selected installations and four focused cache checks passed on Windows/Python 3.12.10 |
 | Capsule/patch delivery | Actual browser/CLI downloads checked; capsule hashes, command records, generated runner and patch applicability verified |
 | Live Gemma request | **Unverified locally: no key configured.** Recorded analyses are partial, with reference recipes |
 | Docker image build | **Unverified: Docker's Linux engine was not running.** Compose configuration validates |
 | Cloud hosting | **Unverified. No DigitalOcean deployment or public URL is claimed** |
 
-The primary frontend remains a separate contribution. This release contains the tested backup UI. Publication to `main` is a local prototype release, not proof of complete model or deployment acceptance.
+The primary frontend was merged from `origin/Frontend`. Its standalone mock scripts are not used by the live service: a service-owned adapter renders real records and excludes simulated checks and synthetic signatures. [Integration details](depbridge_service/PRIMARY_FRONTEND.md) record asset paths, ownership and the Windows branch-name collision. Publication to `main` is a local prototype release, not proof of complete model or deployment acceptance.
 
 ## Windows PowerShell setup
 
@@ -34,11 +34,11 @@ git status --short --branch
 py -3.12 -m venv .venv # Only if .venv does not already exist; 3.13 also works.
 .\.venv\Scripts\python.exe -m pip install -e '.[dev,verification]'
 $env:DEPBRIDGE_PUBLIC_BASE_URL = 'http://127.0.0.1:8000'
-$env:DEPBRIDGE_FRONTEND_DIR = 'demo_frontend'
+$env:DEPBRIDGE_FRONTEND_DIR = 'frontend'
 .\.venv\Scripts\python.exe -X utf8 -m uvicorn depbridge_service.app:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Open [the entry page](http://127.0.0.1:8000/static/start.html), [API docs](http://127.0.0.1:8000/docs), or [health](http://127.0.0.1:8000/api/health). The report and API share an origin. UTF-8 mode supports the engine's generated scripts on Windows. No virtual-environment activation is needed.
+Open [the entry page](http://127.0.0.1:8000/), [API docs](http://127.0.0.1:8000/docs), or [health](http://127.0.0.1:8000/api/health). The report and API share an origin. UTF-8 mode supports the engine's generated scripts on Windows. No virtual-environment activation or frontend build is needed.
 
 Keep `GEMINI_API_KEY` or `GOOGLE_API_KEY` in the service environment, outside Git. The service does **not** automatically load `.env`. A configured key does not establish a successful call: inspect the returned AI state. Never put keys in frontend files, URLs or committed examples.
 
@@ -80,12 +80,12 @@ The configured default is **Google Gemma 4**, identifier `gemma-4-26b-a4b-it`, a
 .\.venv\Scripts\python.exe -X utf8 -m pytest depbridge_service/tests depbridge_engine/tests -q
 .\.venv\Scripts\python.exe -m pip check
 # Requires configured model access and served UI; creates a new live analysis/comparison:
-.\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check --start-path /static/start.html
+.\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check --start-path /
 ```
 
 The test suites include controlled fixtures and are not evidence of full LinkWatch compatibility. The local browser/comparison/download workflow was exercised with real repository evidence. The model acceptance command fails honestly when no key is configured. [Integration status](depbridge_service/INTEGRATION_STATUS.md) records the actual runs and gaps.
 
-[DigitalOcean instructions](deployment/README.md) distinguish **Linux server commands** from local PowerShell. The IP-only template uses `DEPBRIDGE_SITE_ADDRESS=:80`, `DEPBRIDGE_PUBLIC_BASE_URL=http://DROPLET_IP` and `DEPBRIDGE_FRONTEND_DIR=/app/demo_frontend`. Replace the IP and keep keys in `/etc/depbridge/service.env`. Docker build and cloud hosting remain unverified.
+[DigitalOcean instructions](deployment/README.md) distinguish **Linux server commands** from local PowerShell. The IP-only template uses `DEPBRIDGE_SITE_ADDRESS=:80`, `DEPBRIDGE_PUBLIC_BASE_URL=http://DROPLET_IP` and `DEPBRIDGE_FRONTEND_DIR=/app/frontend`. Set `/app/demo_frontend` to use the backup. Replace the IP and keep keys in `/etc/depbridge/service.env`. Docker build and cloud hosting remain unverified.
 
 ## Limitations
 

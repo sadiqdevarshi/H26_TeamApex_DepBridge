@@ -21,4 +21,4 @@ Python and Caddy container images and their bundled components retain their supp
 
 [LinkWatch](https://github.com/rishrek/LinkWatch) is a separate project. Its LICENSE at analyzed revision `f52f3930c8e7c33d934ccf614955a38e26984bd5` is MIT, copyright 2022 linkwatch contributors. Retain that notice with redistributed source excerpts and patch context. Capsules include available root target license files; review the actual target revision's licensing before redistribution or adoption. Evidence snippets retain their recorded upstream URLs and retrieval times.
 
-Engine and backup UI teammate authorship is preserved through Git. The primary frontend contribution is separate from this tested backup integration.
+Engine, primary frontend and backup UI teammate authorship is preserved through Git. The service-owned live adapter is separate from the primary frontend's original design fixtures. The primary visual source uses Google Fonts and Tailwind CDN resources; those upstream distributions retain their own licenses and terms.

@@ -26,3 +26,6 @@ depbridge = "depbridge_cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["depbridge_service*", "depbridge_cli*", "depbridge_engine*"]
+
+[tool.setuptools.package-data]
+depbridge_service = ["static/*.js", "static/*.css"]

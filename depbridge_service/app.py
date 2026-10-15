@@ -4,7 +4,7 @@ import os
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
@@ -12,6 +12,7 @@ from .capsule import build_capsule
 from .config import Settings
 from .models import CreateAnalysis, CreateVerification
 from .service import Service, ServiceError, redact
+from .ui import ASSETS, primary_frontend, render_primary
 
 
 def create_app(settings=None, engine=None):
@@ -101,16 +102,37 @@ def create_app(settings=None, engine=None):
         if not index.is_file():
             return HTMLResponse("<!doctype html><html lang='en'><title>DepBridge</title><h1>DepBridge</h1>"
                 "<p>Report frontend not implemented in this checkout. The API is available at /api and /docs.</p></html>", status_code=503)
+        if primary_frontend(settings.frontend_dir):
+            return HTMLResponse(render_primary(index), headers={"Cache-Control": "no-cache"})
         return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/")
     def root():
+        index = settings.frontend_dir / "index.html"
+        if index.is_file():
+            if primary_frontend(settings.frontend_dir):
+                return HTMLResponse(render_primary(index), headers={"Cache-Control": "no-cache"})
+            return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-cache"})
         return HTMLResponse("<!doctype html><html lang='en'><title>DepBridge</title><h1>DepBridge</h1>"
                             "<p>Submit a public repository using the CLI or <a href='/docs'>API documentation</a>.</p></html>")
 
-    # check_dir=False permits API startup before the separately owned frontend arrives.
-    # StaticFiles checks at first request, so mount only when the directory exists.
+    @app.get("/static/index.html")
+    def primary_index_alias():
+        return RedirectResponse("/", status_code=307)
+
+    @app.get("/static/start.html")
+    def start_alias():
+        if primary_frontend(settings.frontend_dir):
+            return RedirectResponse("/", status_code=307)
+        path = settings.frontend_dir / "static" / "start.html"
+        if path.is_file():
+            return FileResponse(path, media_type="text/html")
+        return RedirectResponse("/", status_code=307)
+
+    app.mount("/service-ui", StaticFiles(directory=ASSETS), name="service-ui")
     static = settings.frontend_dir / "static"
+    if primary_frontend(settings.frontend_dir):
+        static = settings.frontend_dir
     if static.is_dir():
         app.mount("/static", StaticFiles(directory=static), name="static")
     return app
