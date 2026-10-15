@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DepBridge - Enterprise Python Dependency Static Analysis</title>
+  
+  <!-- Google Fonts: IBM Plex Sans & IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["'IBM Plex Sans'", "'Source Sans 3'", 'system-ui', 'sans-serif'],
+            mono: ["'IBM Plex Mono'", 'monospace'],
+          },
+          colors: {
+            brand: {
+              orange: '#D9480F',
+              'orange-hover': '#C03E0B',
+              'orange-light': '#FFF4E6',
+            },
+            status: {
+              pass: '#1E4E8C',
+              'pass-bg': '#EAF1FB',
+              crit: '#B42318',
+              'crit-bg': '#FDECEA',
+              warn: '#B54708',
+              'warn-bg': '#FEF4E6',
+              neutral: '#475467',
+              'neutral-bg': '#F2F4F7',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom Project Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-[#FAFAF8] text-[#1A1A1A] font-sans antialiased text-[15px] min-h-screen flex flex-col">
+
+  <!-- TOP SIMULATION BANNER -->
+  <div class="bg-[#FFF4E6] border-b border-[#FDDCC0] px-4 py-2 text-[13px] text-[#9A3412] flex items-center justify-between">
+    <div class="flex items-center space-x-2 truncate">
+      <span class="inline-block w-2 h-2 rounded-full bg-[#D9480F] shrink-0"></span>
+      <span class="font-medium">Demo simulation:</span>
+      <span class="truncate">AST evidence, isolation graphs, and sandbox runner simulated for <span class="font-semibold underline">rishrek/LinkWatch</span></span>
+    </div>
+    <div class="flex items-center space-x-3 shrink-0">
+      <span class="text-[13px] hidden sm:inline-block bg-[#FDE2CA] text-[#9A3412] px-2.5 py-0.5 rounded font-medium">Sandbox active</span>
+    </div>
+  </div>
+
+  <!-- GLOBAL STICKY HEADER -->
+  <header class="sticky top-0 z-40 bg-white border-b border-[#E5E5E0]">
+    <!-- Top Bar -->
+    <div class="max-w-[1400px] mx-auto px-5 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-[#D9480F] text-white font-mono text-[14px] font-bold w-8 h-8 rounded-[6px] flex items-center justify-center">
+          //
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="font-bold text-[18px] text-[#1A1A1A]">DepBridge</span>
+          <span class="text-[13px] bg-[#F2F4F7] text-[#475467] px-2 py-0.5 rounded-[4px] border border-[#EAECF0] font-medium">Static analysis</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <div class="text-[14px] font-mono bg-[#F2F4F7] border border-[#E5E5E0] px-3 py-1.5 rounded-[6px] text-[#344054] flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-[#D9480F]"></span>
+          <span class="font-medium truncate max-w-[160px] sm:max-w-none">rishrek/LinkWatch@d96a</span>
+        </div>
+        <button onclick="handleReScan()" id="rescanBtn" class="btn-base btn-secondary">
+          <span id="rescanIcon">↺</span>
+          <span class="hidden sm:inline">Re-run</span>
+        </button>
+        <button onclick="switchTab('capsule')" class="btn-base btn-primary">
+          <span>Export capsule ↓</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="border-t border-[#ECECE8]">
+      <div class="max-w-[1400px] mx-auto px-5 flex overflow-x-auto no-scrollbar space-x-2">
+        <button onclick="switchTab('findings')" id="tab-findings" class="nav-tab-btn active">
+          Analysis Report
+        </button>
+        <button onclick="switchTab('codemod')" id="tab-codemod" class="nav-tab-btn">
+          Codemod Diff
+        </button>
+        <button onclick="switchTab('verification')" id="tab-verification" class="nav-tab-btn">
+          Verification
+        </button>
+        <button onclick="switchTab('workspace')" id="tab-workspace" class="nav-tab-btn">
+          Workspace Topology
+        </button>
+        <button onclick="switchTab('capsule')" id="tab-capsule" class="nav-tab-btn">
+          Exit Capsule
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="max-w-[1400px] mx-auto p-5 sm:p-6 space-y-5 flex-1 w-full">
+
+    <!-- VIEW 1: FINDINGS & ANALYSIS (DEFAULT) -->
+    <div id="view-findings" class="space-y-5">
+
+      <!-- REPOSITORY METRIC BAR -->
+      <div class="card-surface p-5 sm:p-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-[#ECECE8]">
+          <div>
+            <div class="flex items-center space-x-3">
+              <h1 class="text-[20px] sm:text-[22px] font-bold text-[#1A1A1A]">Target: rishrek/LinkWatch</h1>
+              <span class="bg-[#F2F4F7] text-[#475467] px-2 py-0.5 rounded-[4px] text-[13px] font-mono border border-[#EAECF0]">main</span>
+            </div>
+            <div class="text-[14px] text-[#475467] mt-1.5 flex flex-wrap items-center gap-3">
+              <span>Environment: <strong class="text-[#1A1A1A] font-mono">Python &gt;=3.10, &lt;3.13</strong></span>
+              <span class="text-[#D0D5DD]">|</span>
+              <span>Manifests: <strong class="text-[#1A1A1A] font-mono">pyproject.toml, requirements.txt, setup.cfg</strong></span>
+            </div>
+          </div>
+          <div class="flex items-center space-x-3 text-[14px] text-[#475467]">
+            <span>Commit: <span class="font-mono text-[#1A1A1A] font-semibold bg-[#F2F4F7] px-2 py-0.5 rounded border border-[#EAECF0]">d96a36f</span></span>
+            <span class="text-[#D0D5DD]">|</span>
+            <span class="status-pill status-pill-pass">✓ Synced</span>
+          </div>
+        </div>
+
+        <!-- 4 High-Density Metric Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-5">
+          <!-- Card 1 -->
+          <div onclick="setFilter('all')" class="card-surface p-5 cursor-pointer hover:bg-[#F9FAFB] transition-colors">
+            <div class="text-[13px] font-medium text-[#475467]">Total packages</div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span class="text-[32px] font-bold text-[#1A1A1A]">24</span>
+              <span class="text-[13px] text-[#667085] font-mono">3 manifests</span>
+            </div>
+            <div class="text-[13px] text-[#667085] mt-1.5">100% manifest AST parity</div>
+          </div>
+
+          <!-- Card 2 (Attention Needed) -->
+          <div onclick="setFilter('critical')" class="card-surface p-5 cursor-pointer hover:bg-[#FDECEA]/30 transition-colors border-l-4 border-l-[#B42318]">
+            <div class="text-[13px] font-medium text-[#B42318] flex items-center justify-between">
+              <span>Attention needed</span>
+              <span class="status-pill status-pill-critical" style="height: 22px; padding: 0 6px; font-size: 12px;">Action required</span>
+            </div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span class="text-[32px] font-bold text-[#B42318]">4</span>
+              <span class="text-[13px] text-[#B42318] font-medium">2 critical</span>
+            </div>
+            <div class="text-[13px] text-[#667085] mt-1.5">High/medium risk call sites</div>
+          </div>
+
+          <!-- Card 3 -->
+          <div onclick="setFilter('critical')" class="card-surface p-5 cursor-pointer hover:bg-[#F9FAFB] transition-colors">
+            <div class="text-[13px] font-medium text-[#475467]">Deprecated / stale</div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span class="text-[32px] font-bold text-[#1A1A1A]">2</span>
+              <span class="text-[13px] text-[#667085]">Upstream dead</span>
+            </div>
+            <div class="text-[13px] text-[#667085] mt-1.5 font-mono">appdirs (2020), nose (2015)</div>
+          </div>
+
+          <!-- Card 4 -->
+          <div onclick="setFilter('migrations')" class="card-surface p-5 cursor-pointer hover:bg-[#F9FAFB] transition-colors">
+            <div class="text-[13px] font-medium text-[#475467]">Migrations ready</div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span class="text-[32px] font-bold text-[#1E4E8C]">3</span>
+              <span class="status-pill status-pill-pass">✓ Drop-in</span>
+            </div>
+            <div class="text-[13px] text-[#667085] mt-1.5">Synthesized AST codemods</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTER & SEARCH TOOLBAR -->
+      <div class="card-surface p-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#667085] text-[15px]">
+            🔍
+          </span>
+          <input 
+            type="text" 
+            id="searchInput"
+            oninput="filterRows()"
+            placeholder="Search package, symbol, or file path (e.g. appdirs, config.py)... [/]" 
+            class="w-full pl-10 pr-4 h-[40px] text-[14px] bg-white border border-[#D0D5DD] rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#2563EB] text-[#1A1A1A] placeholder-[#667085] transition-colors"
+          />
+        </div>
+        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <button onclick="setFilter('all')" id="filter-all" class="filter-chip active">
+            All severities (24)
+          </button>
+          <button onclick="setFilter('critical')" id="filter-critical" class="filter-chip">
+            Critical (2)
+          </button>
+          <button onclick="setFilter('migrations')" id="filter-migrations" class="filter-chip">
+            Migrations ready (3)
+          </button>
+          <button onclick="setFilter('healthy')" id="filter-healthy" class="filter-chip">
+            Healthy (20)
+          </button>
+          
+          <!-- Manifest Dropdown -->
+          <div class="relative inline-block">
+            <select onchange="setManifestFilter(this.value)" class="h-[36px] px-3 rounded-[18px] text-[13px] font-medium bg-white border border-[#E5E5E0] text-[#344054] focus:outline-none focus:ring-2 focus:ring-[#2563EB] cursor-pointer">
+              <option value="all">Manifest: All</option>
+              <option value="pyproject.toml">pyproject.toml</option>
+              <option value="requirements.txt">requirements.txt</option>
+              <option value="setup.cfg">setup.cfg</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA FINDINGS TABLE -->
+      <div class="card-surface overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="dep-table" id="findingsTable">
+            <thead>
+              <tr>
+                <th style="width: 22%;">Package &amp; constraint</th>
+                <th style="width: 14%;">Manifest</th>
+                <th style="width: 18%;">Risk category</th>
+                <th style="width: 18%;">AST usage evidence</th>
+                <th style="width: 14%;">Recommended candidate</th>
+                <th style="width: 14%;">Verification</th>
+                <th style="width: 10%; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="findingsTableBody">
+              <!-- Populated dynamically via app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Footer Info -->
+        <div class="bg-[#F7F7F5] border-t border-[#E5E5E0] px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between text-[13px] text-[#475467] gap-2">
+          <div id="filteredCountLabel">Showing 4 of 24 analyzed dependencies</div>
+          <div class="flex items-center space-x-4">
+            <span>AST Engine: <strong class="text-[#1A1A1A] font-mono">libcst v1.1.0</strong></span>
+            <span>Solver: <strong class="text-[#1A1A1A] font-mono">PubGrub-py 0.5.2</strong></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: MIGRATION WORKSPACE & UNIFIED CODE DIFF -->
+    <div id="view-codemod" class="hidden space-y-5">
+      <!-- Top Action Bar -->
+      <div class="card-surface p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div class="flex items-center space-x-3">
+          <button onclick="switchTab('findings')" class="btn-base btn-secondary" style="height: 36px; padding: 0 14px;">
+            ← Back to findings
+          </button>
+          <span class="text-[#D0D5DD]">/</span>
+          <span id="codemodTitle" class="font-bold text-[16px] text-[#1A1A1A]">Migration: appdirs → platformdirs</span>
+          <span class="text-[13px] bg-[#F2F4F7] text-[#475467] px-2.5 py-0.5 rounded-[4px] border border-[#EAECF0] font-medium">Automated codemod</span>
+        </div>
+        <button onclick="switchTab('verification')" class="btn-base btn-primary">
+          <span>Run verification ▶</span>
+        </button>
+      </div>
+
+      <!-- 2-Column Spec Comparison -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Original Spec Card -->
+        <div class="card-surface p-5 sm:p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-[#ECECE8]">
+            <span class="font-bold text-[16px] text-[#B42318] flex items-center gap-2">
+              <span id="originalPkgBadge">Original spec (appdirs 1.4.4)</span>
+            </span>
+            <span class="status-pill status-pill-critical">Deprecated</span>
+          </div>
+          <div class="mt-4 space-y-3 text-[14px]">
+            <div class="flex justify-between">
+              <span class="text-[#475467]">Manifest declaration:</span>
+              <span id="originalManifest" class="font-mono font-medium text-[#1A1A1A]">pyproject.toml (line 28)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#475467]">Constraint:</span>
+              <span id="originalConstraint" class="font-mono text-[#B42318] bg-[#FDECEA] px-2 py-0.5 rounded">appdirs == 1.4.4</span>
+            </div>
+            <div class="bg-[#FAFAF8] border border-[#E5E5E0] rounded-[6px] p-3 text-[13px] text-[#475467]">
+              <strong class="text-[#1A1A1A] block mb-1">Issue profile</strong>
+              <span id="originalIssueProfile">Package abandoned since May 2020. Breaks XDG directory specification compliance on modern Linux distros and misidentifies Application Support path on macOS Sonoma/Sequoia.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Proposed Replacement Card -->
+        <div class="card-surface p-5 sm:p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-[#ECECE8]">
+            <span class="font-bold text-[16px] text-[#1E4E8C] flex items-center gap-2">
+              <span id="proposedPkgBadge">Proposed replacement (platformdirs 4.2.2)</span>
+            </span>
+            <span class="status-pill status-pill-pass">✓ Drop-in replacement</span>
+          </div>
+          <div class="mt-4 space-y-3 text-[14px]">
+            <div class="flex justify-between">
+              <span class="text-[#475467]">Target constraint:</span>
+              <span id="proposedConstraint" class="font-mono text-[#1E4E8C] bg-[#EAF1FB] px-2 py-0.5 rounded font-medium">platformdirs &gt;= 3.8.0, &lt; 5.0.0</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-[#475467]">API parity:</span>
+              <span id="proposedParity" class="text-[#1E4E8C] font-medium">100% Identical Signatures</span>
+            </div>
+            <div class="bg-[#EAF1FB]/40 border border-[#D0E1F9] rounded-[6px] p-3 text-[13px] text-[#344054]">
+              <strong class="text-[#1E4E8C] block mb-1">Runtime rationale</strong>
+              <span id="proposedRationale">Direct maintained fork of appdirs by the Tox organization. Exports identical function signatures: user_cache_dir and user_data_dir with zero kwargs incompatibilities.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Codemod Execution Checklist -->
+      <div class="card-surface p-5 sm:p-6">
+        <div class="flex items-center justify-between pb-3 border-b border-[#ECECE8]">
+          <h2 class="text-[18px] font-bold text-[#1A1A1A]">
+            Codemod execution checklist
+          </h2>
+          <span id="checklistStatusLabel" class="status-pill status-pill-pass">✓ All staged</span>
+        </div>
+        <div id="codemodChecklist" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Unified Code Diff Viewer -->
+      <div class="card-surface overflow-hidden">
+        <!-- Diff Header / Tabs -->
+        <div class="bg-[#F7F7F5] border-b border-[#E5E5E0] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center space-x-2" id="diffFileTabs">
+            <!-- File tabs -->
+          </div>
+          <div class="flex items-center space-x-3 text-[13px]">
+            <span id="diffStatsBadge" class="font-mono text-[#475467]">Unified Diff</span>
+            <span id="diffNodeBadge" class="text-[#667085] hidden sm:inline">AST Node</span>
+            <button onclick="copyPatch()" class="text-[#D9480F] hover:underline font-medium cursor-pointer">
+              Copy patch
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Block -->
+        <div id="diffCodeBlock" class="bg-[#1C1C1E] text-[#E5E5EA] p-5 font-mono text-[13px] overflow-x-auto leading-relaxed">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Diff Bottom Bar -->
+        <div class="p-4 bg-[#F7F7F5] border-t border-[#E5E5E0] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="text-[13px] text-[#475467]">
+            Static AST verification: <strong class="text-[#1E4E8C]">100% symbol reference compatibility preserved</strong>
+          </div>
+          <div class="flex items-center space-x-3">
+            <button onclick="switchTab('findings')" class="btn-base btn-secondary">
+              Discard
+            </button>
+            <button onclick="switchTab('verification')" class="btn-base btn-primary">
+              Run verification ▶
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: DETERMINISTIC VERIFICATION RUNNER -->
+    <div id="view-verification" class="hidden space-y-5">
+      <!-- Summary Bar -->
+      <div class="card-surface p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div class="flex items-center space-x-3">
+          <span class="w-3 h-3 rounded-full bg-[#1E4E8C] shrink-0"></span>
+          <span class="font-bold text-[18px] text-[#1A1A1A]">
+            Verification result: Zero regressions detected
+          </span>
+          <span id="verificationStatusBadge" class="status-pill status-pill-pass">
+            ✓ Stable
+          </span>
+        </div>
+        <div class="flex items-center space-x-4 text-[14px] text-[#475467]">
+          <span>Duration: <strong id="verificationDurationLabel" class="text-[#1A1A1A] font-mono">1.28s</strong></span>
+          <span class="text-[#D0D5DD]">|</span>
+          <span>Exit code: <strong class="text-[#1E4E8C] font-mono">0</strong></span>
+          <span class="text-[#D0D5DD]">|</span>
+          <button onclick="retriggerVerification()" class="btn-base btn-secondary" style="height: 36px; padding: 0 14px;">
+            <span>Rerun sandbox ↺</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Side-by-Side Dual Terminals -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- TERMINAL 1: ORIGINAL CONTAINER -->
+        <div class="clean-terminal">
+          <div class="clean-terminal-header">
+            <div class="flex items-center space-x-2">
+              <span class="text-[#AEAEB2] text-[13px] font-mono font-medium">
+                Original container: appdirs 1.4.4
+              </span>
+            </div>
+            <span class="text-[12px] font-mono text-[#8E8E93] bg-[#3A3A3C] px-2 py-0.5 rounded">
+              python:3.11-slim
+            </span>
+          </div>
+
+          <div class="clean-terminal-body space-y-1.5">
+            <div class="text-[#8E8E93]">$ pytest tests/ -q</div>
+            <div class="text-[#AEAEB2]">============================= test session starts ==============================</div>
+            <div>platform linux -- Python 3.11.8, pytest-7.4.4, pluggy-1.4.0</div>
+            <div>rootdir: /sandbox/target/LinkWatch</div>
+            <div class="text-[#93C5FD]">..................................</div>
+            <div class="bg-[#3D2C1D] text-[#FDBA74] p-2 rounded border border-[#5C3F22] my-2 text-[13px]">
+              <div>[!] <span class="font-bold">DeprecationWarning:</span> appdirs is unmaintained and deprecated.</div>
+              <div class="text-[#FED7AA]">    from appdirs import user_cache_dir (src/micro_orchestrator/config.py:14)</div>
+            </div>
+            <div class="terminal-warn-line">
+              34 passed, 2 warnings in 1.42s
+            </div>
+            <div class="text-[#8E8E93] mt-2">$ echo $?</div>
+            <div class="text-[#AEAEB2]">0</div>
+          </div>
+        </div>
+
+        <!-- TERMINAL 2: CANDIDATE CONTAINER -->
+        <div class="clean-terminal">
+          <div class="clean-terminal-header">
+            <div class="flex items-center space-x-2">
+              <span class="text-[#93C5FD] text-[13px] font-mono font-medium">
+                Candidate container: platformdirs 4.2.2
+              </span>
+            </div>
+            <span class="status-pill status-pill-pass" style="height: 22px; padding: 0 8px; font-size: 12px;">
+              ✓ Clean pass
+            </span>
+          </div>
+
+          <div id="candidateTerminalLogs" class="clean-terminal-body space-y-1.5">
+            <div class="text-[#8E8E93]">$ pytest tests/ -q</div>
+            <div class="text-[#AEAEB2]">============================= test session starts ==============================</div>
+            <div>platform linux -- Python 3.11.8, pytest-7.4.4, pluggy-1.4.0</div>
+            <div>rootdir: /sandbox/target/LinkWatch</div>
+            <div class="text-[#93C5FD]">..................................</div>
+            <div class="bg-[#1E293B] text-[#93C5FD] p-2 rounded border border-[#334155] my-2 text-[13px]">
+              <div>[✓] <span class="font-bold">Zero deprecation warnings:</span> platformdirs active.</div>
+              <div class="text-[#BFDBFE]">    Deterministic cache path: /home/runner/.cache/LinkWatch</div>
+            </div>
+            <div class="terminal-pass-line">
+              34 passed, 0 warnings in 1.28s. All checks passed.
+            </div>
+            <div class="text-[#8E8E93] mt-2">$ echo $?</div>
+            <div class="text-[#93C5FD] font-semibold">0</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Panel -->
+      <div class="card-surface p-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="text-[14px] text-[#475467] flex items-center gap-2">
+          <span>Sandbox evidence hash:</span>
+          <code class="font-mono text-[#1A1A1A] font-semibold bg-[#F2F4F7] px-2 py-0.5 rounded border border-[#E5E5E0]">sha256:7f01cba88e2</code>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button onclick="switchTab('codemod')" class="btn-base btn-secondary">
+            ← Review codemod
+          </button>
+          <button onclick="switchTab('capsule')" class="btn-base btn-primary">
+            Proceed to capsule export →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 4: WORKSPACE TOPOLOGY & DEPENDENCY GRAPH -->
+    <div id="view-workspace" class="hidden space-y-5">
+      <div class="card-surface p-5 sm:p-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-[#ECECE8] gap-3">
+          <div>
+            <h2 class="text-[20px] font-bold text-[#1A1A1A]">Target repository topology &amp; AST call graph</h2>
+            <p class="text-[14px] text-[#475467] mt-1">Enterprise static analysis graph generated from AST parsing across 43 source files and 3 manifest definitions.</p>
+          </div>
+          <span class="text-[13px] bg-[#F2F4F7] text-[#475467] px-3 py-1 rounded-[6px] border border-[#E5E5E0]">
+            Click any node to inspect blast radius
+          </span>
+        </div>
+        
+        <!-- SVG Canvas for Topology -->
+        <div class="my-5 p-4 bg-[#FAFAF8] border border-[#E5E5E0] rounded-[8px] overflow-x-auto relative">
+          <div id="topologyGraphContainer" class="w-full flex justify-center items-center">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+        <!-- 3 Metrics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div class="card-surface p-5">
+            <div class="text-[13px] font-medium text-[#475467]">Parsed AST nodes</div>
+            <div class="text-[32px] font-bold text-[#1A1A1A] mt-2">1,482</div>
+            <div class="text-[13px] text-[#667085] mt-1">Call sites, imports, type annotations</div>
+          </div>
+          <div class="card-surface p-5">
+            <div class="text-[13px] font-medium text-[#475467]">Manifest isolation</div>
+            <div class="text-[32px] font-bold text-[#1E4E8C] mt-2">Hermetic</div>
+            <div class="text-[13px] text-[#667085] mt-1">No undeclared third-party imports</div>
+          </div>
+          <div class="card-surface p-5">
+            <div class="text-[13px] font-medium text-[#475467]">Automated fix coverage</div>
+            <div class="text-[32px] font-bold text-[#D9480F] mt-2">75.0%</div>
+            <div class="text-[13px] text-[#667085] mt-1">3 of 4 flags fixable via codemod</div>
+          </div>
+        </div>
+
+        <!-- Manifest Breakdown -->
+        <div class="mt-6 pt-5 border-t border-[#ECECE8]">
+          <h3 class="text-[16px] font-bold text-[#1A1A1A] mb-3">Detected dependency manifests</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-4 rounded-[8px] border border-[#E5E5E0] bg-white flex justify-between items-center">
+              <div>
+                <div class="font-mono font-semibold text-[#1A1A1A]">pyproject.toml</div>
+                <div class="text-[13px] text-[#667085] mt-0.5">14 declared dependencies (68 lines)</div>
+              </div>
+              <span class="status-pill status-pill-pass">✓ Synced</span>
+            </div>
+            <div class="p-4 rounded-[8px] border border-[#E5E5E0] bg-white flex justify-between items-center">
+              <div>
+                <div class="font-mono font-semibold text-[#1A1A1A]">requirements.txt</div>
+                <div class="text-[13px] text-[#667085] mt-0.5">7 declared dependencies (24 lines)</div>
+              </div>
+              <span class="status-pill status-pill-pass">✓ Synced</span>
+            </div>
+            <div class="p-4 rounded-[8px] border border-[#E5E5E0] bg-white flex justify-between items-center">
+              <div>
+                <div class="font-mono font-semibold text-[#1A1A1A]">setup.cfg</div>
+                <div class="text-[13px] text-[#667085] mt-0.5">3 declared dependencies (52 lines)</div>
+              </div>
+              <span class="status-pill status-pill-pass">✓ Synced</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-[#ECECE8] flex justify-end">
+          <button onclick="switchTab('findings')" class="btn-base btn-primary">
+            Open analysis report →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: EXIT CAPSULE -->
+    <div id="view-capsule" class="hidden space-y-5">
+      <div class="card-surface p-6 sm:p-8 max-w-2xl mx-auto text-center space-y-5">
+        <div class="w-14 h-14 rounded-full bg-[#FFF4E6] text-[#D9480F] flex items-center justify-center mx-auto text-2xl font-bold">
+          ↓
+        </div>
+        <h2 class="text-[22px] font-bold text-[#1A1A1A]">Export migration evidence capsule</h2>
+        <p class="text-[14px] text-[#475467] max-w-lg mx-auto leading-relaxed">
+          Generates a cryptographically signed bundle containing AST transformation patches, test execution attestations, and rollback scripts.
+        </p>
+
+        <div class="bg-[#FAFAF8] border border-[#E5E5E0] rounded-[8px] p-5 text-left text-[14px] space-y-3 text-[#344054]">
+          <div class="flex justify-between border-b border-[#ECECE8] pb-2">
+            <span class="text-[#667085]">Target:</span>
+            <span class="font-semibold text-[#1A1A1A]">rishrek/LinkWatch (commit d96a36f)</span>
+          </div>
+          <div class="flex justify-between border-b border-[#ECECE8] pb-2">
+            <span class="text-[#667085]">Codemods:</span>
+            <span class="text-[#D9480F] font-semibold">1 approved (appdirs → platformdirs)</span>
+          </div>
+          <div class="flex justify-between border-b border-[#ECECE8] pb-2">
+            <span class="text-[#667085]">Sandbox verification:</span>
+            <span class="status-pill status-pill-pass">✓ Passed (34 tests, 0 regressions)</span>
+          </div>
+          <div class="flex justify-between border-b border-[#ECECE8] pb-2">
+            <span class="text-[#667085]">Cryptographic attestation:</span>
+            <span class="text-[#1A1A1A]">in-toto attestation v1.0 (Cosign signed)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[#667085]">Evidence SHA256:</span>
+            <span class="font-mono text-[13px] text-[#475467]">7f01cba88e24f61e89c3b881907de38cbb5920a1</span>
+          </div>
+        </div>
+
+        <div class="pt-3 flex flex-wrap justify-center gap-3">
+          <button onclick="switchTab('findings')" class="btn-base btn-secondary">
+            Cancel
+          </button>
+          <button onclick="downloadSignedCapsule()" class="btn-base btn-primary">
+            <span>Download signed capsule (.json)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- AST CALL SITE INSPECTION SIDE DRAWER -->
+  <div id="drawerOverlay" onclick="closeInspectorDrawer()" class="drawer-backdrop hidden"></div>
+  <aside id="inspectorDrawer" class="drawer-panel hidden">
+    <!-- Drawer Header -->
+    <div class="p-5 border-b border-[#ECECE8] flex items-center justify-between bg-[#FAFAF8]">
+      <div class="flex items-center space-x-3">
+        <span class="status-pill status-pill-pass" style="height: 24px; padding: 0 8px; font-size: 12px;">AST</span>
+        <span id="drawerPkgName" class="font-mono font-bold text-[17px] text-[#1A1A1A]">appdirs</span>
+        <span id="drawerPkgConstraint" class="font-mono text-[14px] text-[#667085]">==1.4.4</span>
+      </div>
+      <button onclick="closeInspectorDrawer()" class="text-[#667085] hover:text-[#1A1A1A] text-[18px] cursor-pointer">
+        ✕
+      </button>
+    </div>
+
+    <!-- Drawer Content -->
+    <div class="p-5 space-y-5 overflow-y-auto flex-1 text-[14px]">
+      <div>
+        <div class="text-[13px] text-[#667085] font-medium">Risk profile</div>
+        <div id="drawerRiskTitle" class="font-bold text-[#1A1A1A] text-[16px] mt-1">[Critical] Stale / Abandoned</div>
+        <p id="drawerRiskDesc" class="text-[#475467] mt-1.5 leading-relaxed"></p>
+      </div>
+
+      <div class="bg-[#FAFAF8] p-4 rounded-[8px] border border-[#E5E5E0] space-y-2 text-[14px]">
+        <div class="flex justify-between">
+          <span class="text-[#667085]">Manifest declaration:</span>
+          <span id="drawerManifestLoc" class="font-mono font-semibold text-[#1A1A1A]"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-[#667085]">Recommended candidate:</span>
+          <span id="drawerCandidate" class="font-mono font-semibold text-[#1E4E8C]"></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-[13px] text-[#667085] font-medium mb-2.5">Detected AST call sites &amp; nodes</div>
+        <div id="drawerCallSites" class="space-y-3">
+          <!-- Populated by app.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer Footer Actions -->
+    <div class="p-4 border-t border-[#ECECE8] bg-[#FAFAF8] flex items-center justify-between">
+      <button onclick="closeInspectorDrawer()" class="btn-base btn-secondary">
+        Close
+      </button>
+      <button id="drawerCodemodBtn" class="btn-base btn-primary">
+        Review codemod diff →
+      </button>
+    </div>
+  </aside>
+
+  <!-- GLOBAL FOOTER -->
+  <footer class="bg-white border-t border-[#E5E5E0] py-3 px-5 text-[13px] text-[#475467] flex flex-col sm:flex-row items-center justify-between gap-2 mt-auto">
+    <div class="flex items-center space-x-2">
+      <span class="w-2 h-2 rounded-full bg-[#1E4E8C]"></span>
+      <span>DepBridge Enterprise Static Analysis Engine v1.4.2</span>
+    </div>
+    <div class="flex items-center space-x-4 text-[#667085]">
+      <span>Keyboard: [1-5] Switch tabs</span>
+      <span>[/] Search</span>
+      <span>[Esc] Close drawer</span>
+    </div>
+  </footer>
+
+  <!-- Application Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
