@@ -1,0 +1,20 @@
+{
+  "name": "depbridge-frontend",
+  "version": "1.0.0",
+  "description": "Enterprise Python Dependency Static Analysis Frontend",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx -y serve . -l 3000",
+    "dev": "npx -y serve . -l 3000"
+  },
+  "keywords": [
+    "depbridge",
+    "static-analysis",
+    "ast",
+    "python",
+    "dependencies",
+    "codemod"
+  ],
+  "author": "DepBridge",
+  "license": "MIT"
+}

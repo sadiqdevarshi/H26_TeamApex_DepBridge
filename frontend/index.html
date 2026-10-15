@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DepBridge - Enterprise Python Dependency Static Analysis</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Custom Project Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#FFF7ED',
+              100: '#FFEDD5',
+              500: '#F97316',
+              600: '#EA580C',
+              700: '#C2410C',
+              800: '#9A3412',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#FAFAFA] text-[#18181B] font-sans antialiased text-xs sm:text-sm selection:bg-orange-100 selection:text-orange-900 code-grid min-h-screen flex flex-col">
+
+  <!-- TOP SIMULATION BANNER -->
+  <div class="bg-[#FFF7ED] border-b border-[#FFEDD5] px-3 py-1.5 text-[11px] font-mono text-[#9A3412] flex items-center justify-between">
+    <div class="flex items-center space-x-2 truncate">
+      <span class="inline-block w-2 h-2 rounded-full bg-[#EA580C] animate-pulse shrink-0"></span>
+      <span class="font-semibold uppercase tracking-wider text-[10px]">DEMO RUN:</span>
+      <span class="truncate">AST evidence, isolation graphs &amp; sandbox runner simulated for <span class="font-bold underline">rishrek/LinkWatch</span></span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span class="text-[10px] hidden sm:inline-block bg-[#FFEDD5] text-[#9A3412] px-1.5 py-0.5 rounded font-mono font-medium">SANDBOX ACTIVE</span>
+      <button onclick="toggleTheme()" title="Toggle Theme" class="text-[10px] font-mono text-[#9A3412] hover:text-[#EA580C] border border-[#FFEDD5] bg-white/70 px-1.5 py-0.5 rounded">
+        🌓 Theme
+      </button>
+    </div>
+  </div>
+
+  <!-- GLOBAL STICKY HEADER -->
+  <header class="sticky top-0 z-40 bg-white border-b border-[#E4E4E7] shadow-xs">
+    <!-- Top Bar -->
+    <div class="px-3 py-2.5 flex items-center justify-between border-b border-zinc-100">
+      <div class="flex items-center space-x-2">
+        <div class="bg-[#EA580C] text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-[4px] tracking-tighter shadow-xs">
+          //
+        </div>
+        <div class="flex flex-col">
+          <div class="flex items-center space-x-1.5">
+            <span class="font-black tracking-tight text-sm text-[#09090B]">DepBridge</span>
+            <span class="text-[9px] font-mono bg-zinc-100 text-zinc-600 px-1 py-0.2 rounded border border-zinc-200 uppercase font-semibold">STATIC ANALYSIS</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-1.5">
+        <div class="font-mono text-[10px] bg-zinc-50 border border-zinc-200 px-2 py-1 rounded-[4px] text-zinc-700 flex items-center space-x-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#EA580C]"></span>
+          <span class="font-medium truncate max-w-[110px] sm:max-w-none">rishrek/LinkWatch@d96a</span>
+        </div>
+        <button onclick="handleReScan()" id="rescanBtn" class="px-2 py-1 bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 rounded-[4px] font-mono text-[11px] flex items-center space-x-1 transition-colors">
+          <span id="rescanIcon">↺</span>
+          <span class="hidden sm:inline">Re-run</span>
+        </button>
+        <button onclick="switchTab('capsule')" class="px-2.5 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] font-mono font-medium text-[11px] transition-colors flex items-center space-x-1 shadow-sm">
+          <span>Export ↓</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sub Navigation Tabs (Scrollable on mobile) -->
+    <nav class="flex overflow-x-auto no-scrollbar px-3 space-x-4 bg-white text-xs font-medium border-t border-zinc-50">
+      <button onclick="switchTab('findings')" id="tab-findings" class="tab-btn py-2 text-[#EA580C] font-semibold border-b-2 border-[#EA580C] whitespace-nowrap">
+        Analysis Report <span class="ml-1 px-1.5 py-0.2 rounded-full bg-[#FFF7ED] text-[#EA580C] border border-[#FFEDD5] text-[10px]">4</span>
+      </button>
+      <button onclick="switchTab('codemod')" id="tab-codemod" class="tab-btn py-2 text-zinc-500 hover:text-zinc-900 border-b-2 border-transparent whitespace-nowrap">
+        Codemod Diff <span class="ml-1 px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-600 text-[10px] font-mono">1</span>
+      </button>
+      <button onclick="switchTab('verification')" id="tab-verification" class="tab-btn py-2 text-zinc-500 hover:text-zinc-900 border-b-2 border-transparent whitespace-nowrap">
+        Verification <span class="ml-1 text-[10px] text-emerald-600 font-mono">● PASS</span>
+      </button>
+      <button onclick="switchTab('workspace')" id="tab-workspace" class="tab-btn py-2 text-zinc-500 hover:text-zinc-900 border-b-2 border-transparent whitespace-nowrap">
+        Workspace Topology
+      </button>
+      <button onclick="switchTab('capsule')" id="tab-capsule" class="tab-btn py-2 text-zinc-500 hover:text-zinc-900 border-b-2 border-transparent whitespace-nowrap">
+        Exit Capsule
+      </button>
+    </nav>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="max-w-7xl mx-auto p-3 sm:p-4 space-y-4 flex-1 w-full">
+
+    <!-- VIEW 1: FINDINGS & ANALYSIS (DEFAULT) -->
+    <div id="view-findings" class="space-y-4">
+
+      <!-- REPOSITORY METRIC BAR -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-zinc-100">
+          <div>
+            <div class="flex items-center space-x-2">
+              <h1 class="font-mono font-bold text-sm sm:text-base text-[#09090B]">rishrek/LinkWatch</h1>
+              <span class="bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded text-[10px] font-mono border border-zinc-200">main</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 font-mono mt-0.5">
+              <span>Env: <b class="text-zinc-800">Python &gt;=3.10, &lt;3.13</b></span>
+              <span class="mx-1.5 text-zinc-300">|</span>
+              <span>Manifests: <b class="text-zinc-800">pyproject.toml, requirements.txt, setup.cfg</b></span>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2 text-[11px] font-mono text-zinc-500">
+            <span>Commit: <span class="text-zinc-900 font-semibold bg-zinc-100 px-1 py-0.5 rounded">d96a36f</span></span>
+            <span class="text-zinc-300">|</span>
+            <span class="text-emerald-600 font-medium flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> AST Synced
+            </span>
+          </div>
+        </div>
+
+        <!-- 4 High-Density Metric Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-3">
+          <!-- Card 1 -->
+          <div onclick="setFilter('all')" class="bg-[#FAFAFA] hover:bg-zinc-100/70 border border-[#E4E4E7] rounded-[4px] p-2.5 cursor-pointer transition-colors">
+            <div class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Total Packages</div>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-xl font-bold font-mono text-[#09090B]">24</span>
+              <span class="text-[10px] text-zinc-400 font-mono">3 manifests</span>
+            </div>
+            <div class="text-[10px] text-zinc-500 mt-1 truncate">100% manifest AST parity</div>
+          </div>
+
+          <!-- Card 2 (Accented) -->
+          <div onclick="setFilter('critical')" class="bg-white border-y border-r border-[#E4E4E7] border-l-2 border-l-[#EA580C] rounded-[4px] p-2.5 shadow-xs cursor-pointer hover:bg-orange-50/20 transition-colors">
+            <div class="text-zinc-700 text-[11px] font-medium uppercase tracking-wider flex items-center justify-between">
+              <span>Attention Needed</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-[#EA580C]"></span>
+            </div>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-xl font-bold font-mono text-[#EA580C]">4</span>
+              <span class="text-[10px] text-orange-700 font-mono bg-orange-50 px-1 rounded">2 Critical</span>
+            </div>
+            <div class="text-[10px] text-zinc-500 mt-1 truncate">High/Medium risk call sites</div>
+          </div>
+
+          <!-- Card 3 -->
+          <div onclick="setFilter('critical')" class="bg-[#FAFAFA] hover:bg-zinc-100/70 border border-[#E4E4E7] rounded-[4px] p-2.5 cursor-pointer transition-colors">
+            <div class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Deprecated / Stale</div>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-xl font-bold font-mono text-zinc-800">2</span>
+              <span class="text-[10px] text-zinc-400 font-mono">Upstream dead</span>
+            </div>
+            <div class="text-[10px] text-zinc-500 mt-1 truncate">appdirs (2020), nose (2015)</div>
+          </div>
+
+          <!-- Card 4 -->
+          <div onclick="setFilter('migrations')" class="bg-[#FAFAFA] hover:bg-zinc-100/70 border border-[#E4E4E7] rounded-[4px] p-2.5 cursor-pointer transition-colors">
+            <div class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Migrations Ready</div>
+            <div class="flex items-baseline justify-between mt-1">
+              <span class="text-xl font-bold font-mono text-emerald-700">3</span>
+              <span class="text-[10px] text-emerald-800 font-mono bg-emerald-50 px-1 rounded border border-emerald-200">100% Drop-in</span>
+            </div>
+            <div class="text-[10px] text-zinc-500 mt-1 truncate">Synthesized AST codemods</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTER & SEARCH TOOLBAR -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-2 flex flex-col md:flex-row gap-2 items-stretch md:items-center justify-between shadow-2xs">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-zinc-400 text-xs">
+            🔍
+          </span>
+          <input 
+            type="text" 
+            id="searchInput"
+            placeholder="Filter package, symbol, import path (e.g. appdirs, config.py)... [/]" 
+            class="w-full pl-8 pr-3 py-1.5 text-xs font-mono bg-zinc-50 border border-zinc-200 rounded-[4px] focus:outline-none focus:border-[#EA580C] focus:bg-white text-zinc-800 placeholder-zinc-400 transition-colors"
+          />
+        </div>
+        <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar text-[11px]">
+          <button onclick="setFilter('all')" id="filter-all" class="filter-pill px-2.5 py-1 rounded-[4px] bg-zinc-900 text-white font-medium whitespace-nowrap">
+            All Severities (24)
+          </button>
+          <button onclick="setFilter('critical')" id="filter-critical" class="filter-pill px-2.5 py-1 rounded-[4px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 whitespace-nowrap">
+            Critical (2)
+          </button>
+          <button onclick="setFilter('migrations')" id="filter-migrations" class="filter-pill px-2.5 py-1 rounded-[4px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 whitespace-nowrap">
+            Migrations Ready (3)
+          </button>
+          <button onclick="setFilter('healthy')" id="filter-healthy" class="filter-pill px-2.5 py-1 rounded-[4px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 whitespace-nowrap">
+            Healthy (20)
+          </button>
+          <!-- Manifest Dropdown -->
+          <div class="relative inline-block">
+            <select onchange="setManifestFilter(this.value)" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-2 py-1 rounded-[4px] font-mono text-[11px] border-none focus:outline-none cursor-pointer">
+              <option value="all">Manifest: All</option>
+              <option value="pyproject.toml">pyproject.toml</option>
+              <option value="requirements.txt">requirements.txt</option>
+              <option value="setup.cfg">setup.cfg</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA-DENSE FINDINGS TABLE -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] overflow-hidden shadow-xs">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse" id="findingsTable">
+            <thead>
+              <tr class="bg-zinc-50 border-b border-[#E4E4E7] text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                <th class="py-2 px-3 font-semibold">Package &amp; Constraint</th>
+                <th class="py-2 px-3 font-semibold">Manifest</th>
+                <th class="py-2 px-3 font-semibold">Risk Category</th>
+                <th class="py-2 px-3 font-semibold">AST Usage Evidence</th>
+                <th class="py-2 px-3 font-semibold">Recommended Candidate</th>
+                <th class="py-2 px-3 font-semibold">Verification</th>
+                <th class="py-2 px-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="findingsTableBody" class="divide-y divide-[#E4E4E7] text-xs font-mono">
+              <!-- Populated dynamically via app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Footer Info -->
+        <div class="bg-zinc-50 border-t border-[#E4E4E7] px-3 py-2 flex flex-col sm:flex-row items-center justify-between text-[11px] font-mono text-zinc-500 gap-1">
+          <div id="filteredCountLabel">Showing 4 of 24 analyzed dependencies (Filtered by attention requirement)</div>
+          <div class="flex items-center space-x-3">
+            <span>AST Engine: <b class="text-zinc-700">libcst v1.1.0</b></span>
+            <span>Solver: <b class="text-zinc-700">PubGrub-py 0.5.2</b></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: MIGRATION WORKSPACE & UNIFIED CODE DIFF -->
+    <div id="view-codemod" class="hidden space-y-4">
+      <!-- Breadcrumb Bar -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-2.5 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <button onclick="switchTab('findings')" class="font-mono text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1">
+            ← <span class="underline">Back to Findings</span>
+          </button>
+          <span class="text-zinc-300">/</span>
+          <span id="codemodTitle" class="font-mono font-bold text-xs text-[#09090B]">Migration: appdirs → platformdirs</span>
+          <span class="bg-[#FFF7ED] text-[#EA580C] border border-[#FFEDD5] text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold">AUTOMATED CODEMOD</span>
+        </div>
+        <button onclick="switchTab('verification')" class="px-3 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] text-xs font-mono font-medium transition-colors flex items-center space-x-1 shadow-sm">
+          <span>Run Verification ▶</span>
+        </button>
+      </div>
+
+      <!-- 2-Column Spec Comparison -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <!-- Original Spec Card -->
+        <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 shadow-2xs">
+          <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+            <span class="font-mono font-bold text-xs text-red-600 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-red-500"></span> <span id="originalPkgBadge">Original Spec (appdirs 1.4.4)</span>
+            </span>
+            <span class="text-[10px] font-mono bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200">DEPRECATED</span>
+          </div>
+          <div class="mt-2.5 space-y-2 text-xs">
+            <div class="flex justify-between font-mono text-[11px]">
+              <span class="text-zinc-400">Manifest Declaration:</span>
+              <span id="originalManifest" class="font-semibold text-zinc-800">pyproject.toml (line 28)</span>
+            </div>
+            <div class="flex justify-between font-mono text-[11px]">
+              <span class="text-zinc-400">Constraint:</span>
+              <span id="originalConstraint" class="text-red-700 bg-red-50 px-1 rounded font-semibold">appdirs == 1.4.4</span>
+            </div>
+            <div class="bg-zinc-50 border border-zinc-200 rounded-[4px] p-2 text-[11px] text-zinc-600 font-sans">
+              <b class="text-zinc-900 block font-mono text-[10px] uppercase text-zinc-400">Issue Profile</b>
+              <span id="originalIssueProfile">Package abandoned since May 2020. Breaks XDG directory specification compliance on modern Linux distros and misidentifies Application Support path on macOS Sonoma/Sequoia.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Proposed Replacement Card -->
+        <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 shadow-2xs">
+          <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+            <span class="font-mono font-bold text-xs text-[#EA580C] flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-[#EA580C]"></span> <span id="proposedPkgBadge">Proposed Replacement (platformdirs 4.2.2)</span>
+            </span>
+            <span class="text-[10px] font-mono bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">DROP-IN REPLACEMENT</span>
+          </div>
+          <div class="mt-2.5 space-y-2 text-xs">
+            <div class="flex justify-between font-mono text-[11px]">
+              <span class="text-zinc-400">Target Constraint:</span>
+              <span id="proposedConstraint" class="font-semibold text-emerald-700 font-mono bg-emerald-50 px-1 rounded">platformdirs &gt;= 3.8.0, &lt; 5.0.0</span>
+            </div>
+            <div class="flex justify-between font-mono text-[11px]">
+              <span class="text-zinc-400">API Parity:</span>
+              <span id="proposedParity" class="text-emerald-700 font-semibold font-mono">100% Identical Signatures</span>
+            </div>
+            <div class="bg-orange-50/40 border border-orange-100 rounded-[4px] p-2 text-[11px] text-zinc-700 font-sans">
+              <b class="text-[#EA580C] block font-mono text-[10px] uppercase">Runtime Rationale</b>
+              <span id="proposedRationale">Direct maintained fork of appdirs by the Tox organization. Exports identical function signatures: user_cache_dir and user_data_dir with zero kwargs incompatibilities.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Codemod Execution Checklist -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 shadow-2xs">
+        <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+          <span class="font-mono font-bold text-xs text-zinc-900 uppercase tracking-wide">
+            Codemod Execution Checklist
+          </span>
+          <span id="checklistStatusLabel" class="text-[11px] font-mono text-emerald-600 font-medium">All staged</span>
+        </div>
+        <div id="codemodChecklist" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2.5">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Unified Code Diff Viewer -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] overflow-hidden shadow-xs">
+        <!-- Diff Header / Tabs -->
+        <div class="bg-zinc-100 border-b border-[#E4E4E7] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-1.5" id="diffFileTabs">
+            <!-- File tabs -->
+          </div>
+          <div class="flex items-center space-x-2">
+            <span id="diffStatsBadge" class="text-[10px] font-mono text-zinc-500">Unified Diff</span>
+            <span id="diffNodeBadge" class="text-zinc-400 font-mono text-[10px] hidden sm:inline">AST Node</span>
+            <button onclick="copyPatch()" class="text-[11px] font-mono text-[#EA580C] hover:underline font-semibold flex items-center gap-1">
+              <span>Copy Patch</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Block -->
+        <div id="diffCodeBlock" class="bg-[#090D16] text-zinc-200 p-3 sm:p-4 font-mono text-[11px] sm:text-xs overflow-x-auto leading-relaxed">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Diff Bottom Bar -->
+        <div class="p-2.5 bg-zinc-50 border-t border-[#E4E4E7] flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div class="text-[11px] font-mono text-zinc-500">
+            Static AST verification: <span class="text-emerald-700 font-bold">100% symbol reference compatibility preserved</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="switchTab('findings')" class="px-2.5 py-1 bg-white border border-zinc-300 text-zinc-700 rounded-[4px] text-xs font-mono hover:bg-zinc-50">
+              Discard
+            </button>
+            <button onclick="switchTab('verification')" class="px-3 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] text-xs font-mono font-medium shadow-xs">
+              Run Verification ▶
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: DETERMINISTIC VERIFICATION RUNNER -->
+    <div id="view-verification" class="hidden space-y-4">
+      <!-- Summary Bar -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+        <div class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full bg-emerald-500 shrink-0"></span>
+          <span class="font-mono font-bold text-xs sm:text-sm text-zinc-900">
+            Verification Result: Zero Regressions Detected
+          </span>
+          <span id="verificationStatusBadge" class="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold">
+            STABLE
+          </span>
+        </div>
+        <div class="flex items-center space-x-3 text-xs font-mono text-zinc-600">
+          <span>Duration: <b id="verificationDurationLabel" class="text-zinc-900">1.28s</b></span>
+          <span class="text-zinc-300">|</span>
+          <span>Exit Code: <b class="text-emerald-700">0</b></span>
+          <span class="text-zinc-300">|</span>
+          <button onclick="retriggerVerification()" class="text-[#EA580C] font-semibold hover:underline flex items-center gap-1">
+            <span>Rerun Sandbox ↺</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Side-by-Side Dual Terminals -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+        <!-- TERMINAL 1: ORIGINAL CONTAINER -->
+        <div class="bg-[#090D16] border border-zinc-800 rounded-[4px] overflow-hidden shadow-md flex flex-col terminal-window">
+          <!-- Terminal Top Bar -->
+          <div class="bg-[#101623] px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <div class="flex space-x-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+              </div>
+              <span class="text-zinc-400 font-mono text-[11px] font-semibold">
+                ORIGINAL CONTAINER: appdirs 1.4.4
+              </span>
+            </div>
+            <span class="text-[10px] font-mono text-zinc-500 bg-zinc-800/80 px-1.5 py-0.2 rounded">
+              python:3.11-slim
+            </span>
+          </div>
+
+          <!-- Terminal Content -->
+          <div class="p-3 font-mono text-[11px] leading-relaxed text-zinc-300 space-y-1.5 overflow-x-auto min-h-[220px]">
+            <div class="text-zinc-500">$ pytest tests/ -q</div>
+            <div class="text-zinc-400">============================= test session starts ==============================</div>
+            <div>platform linux -- Python 3.11.8, pytest-7.4.4, pluggy-1.4.0</div>
+            <div>rootdir: /sandbox/target/LinkWatch</div>
+            <div class="text-emerald-400">..................................</div>
+            <div class="bg-yellow-950/40 text-yellow-300 p-1.5 rounded border border-yellow-800/50 my-1 text-[10px]">
+              <div>[!] <span class="font-bold">DeprecationWarning:</span> appdirs is unmaintained and deprecated.</div>
+              <div class="text-yellow-400/80">    from appdirs import user_cache_dir (src/micro_orchestrator/config.py:14)</div>
+            </div>
+            <div class="text-amber-400 font-semibold">
+              34 passed, 2 warnings in 1.42s
+            </div>
+            <div class="text-zinc-500 mt-2">$ echo $?</div>
+            <div class="text-zinc-400">0</div>
+          </div>
+        </div>
+
+        <!-- TERMINAL 2: CANDIDATE CONTAINER -->
+        <div class="bg-[#090D16] border border-orange-900/40 rounded-[4px] overflow-hidden shadow-md flex flex-col terminal-window">
+          <!-- Terminal Top Bar -->
+          <div class="bg-[#101623] px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <div class="flex space-x-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+              </div>
+              <span class="text-[#EA580C] font-mono text-[11px] font-semibold">
+                CANDIDATE CONTAINER: platformdirs 4.2.2
+              </span>
+            </div>
+            <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.2 rounded font-semibold">
+              CLEAN PASS
+            </span>
+          </div>
+
+          <!-- Terminal Content -->
+          <div id="candidateTerminalLogs" class="p-3 font-mono text-[11px] leading-relaxed text-zinc-300 space-y-1.5 overflow-x-auto min-h-[220px]">
+            <div class="text-zinc-500">$ pytest tests/ -q</div>
+            <div class="text-zinc-400">============================= test session starts ==============================</div>
+            <div>platform linux -- Python 3.11.8, pytest-7.4.4, pluggy-1.4.0</div>
+            <div>rootdir: /sandbox/target/LinkWatch</div>
+            <div class="text-emerald-400">..................................</div>
+            <div class="bg-emerald-950/40 text-emerald-300 p-1.5 rounded border border-emerald-800/50 my-1 text-[10px]">
+              <div>[✓] <span class="font-bold">Zero Deprecation Warnings:</span> platformdirs active.</div>
+              <div class="text-emerald-400/80">    Deterministic cache path: /home/runner/.cache/LinkWatch</div>
+            </div>
+            <div class="text-emerald-400 font-bold">
+              34 passed, 0 warnings in 1.28s. All checks green.
+            </div>
+            <div class="text-zinc-500 mt-2">$ echo $?</div>
+            <div class="text-emerald-400 font-semibold">0</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Panel -->
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-3 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-2xs">
+        <div class="text-xs font-mono text-zinc-600 flex items-center gap-1.5">
+          <span>Sandbox evidence hash:</span>
+          <code class="font-bold text-zinc-900 bg-zinc-100 px-1 py-0.5 rounded">sha256:7f01cba88e2</code>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="switchTab('codemod')" class="px-3 py-1 bg-white border border-zinc-300 text-zinc-700 rounded-[4px] text-xs font-mono hover:bg-zinc-50">
+            ← Review Codemod
+          </button>
+          <button onclick="switchTab('capsule')" class="px-3 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] text-xs font-mono font-medium shadow-xs">
+            Proceed to Capsule Export →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 4: WORKSPACE TOPOLOGY & DEPENDENCY GRAPH -->
+    <div id="view-workspace" class="hidden space-y-4">
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-4 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-zinc-100 gap-2">
+          <div>
+            <h2 class="text-sm font-bold text-zinc-900 font-mono">Target Repository Topology &amp; AST Call Graph</h2>
+            <p class="text-xs text-zinc-600">Enterprise static analysis graph generated from AST parsing across 43 source files and 3 manifest definitions.</p>
+          </div>
+          <span class="text-[10px] font-mono bg-zinc-100 text-zinc-700 px-2 py-1 rounded border border-zinc-200">
+            Click any node to inspect blast radius
+          </span>
+        </div>
+        
+        <!-- Interactive SVG Canvas for Topology -->
+        <div class="my-4 p-3 bg-zinc-50/70 border border-zinc-200 rounded-[4px] overflow-x-auto relative">
+          <div id="topologyGraphContainer" class="w-full flex justify-center items-center">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+        <!-- 3 Metrics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="p-3 bg-zinc-50 border border-zinc-200 rounded-[4px]">
+            <div class="text-[11px] font-mono text-zinc-500 uppercase">Parsed AST Nodes</div>
+            <div class="text-lg font-bold font-mono text-zinc-900 mt-1">1,482</div>
+            <div class="text-[10px] text-zinc-400 mt-0.5">Call sites, imports, type annotations</div>
+          </div>
+          <div class="p-3 bg-zinc-50 border border-zinc-200 rounded-[4px]">
+            <div class="text-[11px] font-mono text-zinc-500 uppercase">Manifest Isolation</div>
+            <div class="text-lg font-bold font-mono text-zinc-900 mt-1">Hermetic</div>
+            <div class="text-[10px] text-zinc-400 mt-0.5">No undeclared third-party imports</div>
+          </div>
+          <div class="p-3 bg-zinc-50 border border-zinc-200 rounded-[4px]">
+            <div class="text-[11px] font-mono text-zinc-500 uppercase">Automated Fix Coverage</div>
+            <div class="text-lg font-bold font-mono text-[#EA580C] mt-1">75.0%</div>
+            <div class="text-[10px] text-zinc-400 mt-0.5">3 of 4 flags fixable via codemod</div>
+          </div>
+        </div>
+
+        <!-- Manifest Breakdown -->
+        <div class="mt-4 pt-3 border-t border-zinc-200">
+          <h3 class="font-mono text-xs font-bold text-zinc-800 mb-2">Detected Dependency Manifests</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="p-2.5 rounded border border-zinc-200 bg-white font-mono text-xs flex justify-between items-center">
+              <div>
+                <div class="font-semibold text-zinc-900">pyproject.toml</div>
+                <div class="text-[10px] text-zinc-500">14 declared dependencies (68 lines)</div>
+              </div>
+              <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">Synced</span>
+            </div>
+            <div class="p-2.5 rounded border border-zinc-200 bg-white font-mono text-xs flex justify-between items-center">
+              <div>
+                <div class="font-semibold text-zinc-900">requirements.txt</div>
+                <div class="text-[10px] text-zinc-500">7 declared dependencies (24 lines)</div>
+              </div>
+              <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">Synced</span>
+            </div>
+            <div class="p-2.5 rounded border border-zinc-200 bg-white font-mono text-xs flex justify-between items-center">
+              <div>
+                <div class="font-semibold text-zinc-900">setup.cfg</div>
+                <div class="text-[10px] text-zinc-500">3 declared dependencies (52 lines)</div>
+              </div>
+              <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">Synced</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-zinc-200 flex justify-end">
+          <button onclick="switchTab('findings')" class="px-3 py-1.5 bg-[#EA580C] text-white rounded-[4px] font-mono text-xs font-medium hover:bg-[#C2410C]">
+            Open Analysis Report →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: EXIT CAPSULE -->
+    <div id="view-capsule" class="hidden space-y-4">
+      <div class="bg-white border border-[#E4E4E7] rounded-[4px] p-4 sm:p-6 shadow-xs max-w-2xl mx-auto text-center space-y-4">
+        <div class="w-12 h-12 rounded-full bg-orange-100 text-[#EA580C] flex items-center justify-center mx-auto text-xl font-mono font-bold">
+          ↓
+        </div>
+        <h2 class="text-base sm:text-lg font-bold text-zinc-900 font-mono">Export Migration Evidence Capsule</h2>
+        <p class="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
+          Generates a cryptographically signed bundle containing AST transformation patches, test execution attestations, and rollback scripts.
+        </p>
+
+        <div class="bg-zinc-50 border border-zinc-200 rounded-[4px] p-3.5 text-left font-mono text-[11px] space-y-2 text-zinc-700">
+          <div class="flex justify-between border-b border-zinc-200 pb-1.5">
+            <span class="text-zinc-400">Target:</span>
+            <span class="font-semibold text-zinc-900">rishrek/LinkWatch (commit d96a36f)</span>
+          </div>
+          <div class="flex justify-between border-b border-zinc-200 pb-1.5">
+            <span class="text-zinc-400">Codemods:</span>
+            <span class="text-[#EA580C] font-semibold">1 approved (appdirs → platformdirs)</span>
+          </div>
+          <div class="flex justify-between border-b border-zinc-200 pb-1.5">
+            <span class="text-zinc-400">Sandbox Verification:</span>
+            <span class="text-emerald-700 font-semibold">PASSED (34 tests, 0 regressions)</span>
+          </div>
+          <div class="flex justify-between border-b border-zinc-200 pb-1.5">
+            <span class="text-zinc-400">Cryptographic Attestation:</span>
+            <span class="text-zinc-800">in-toto attestation v1.0 (Cosign signed)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-zinc-400">Evidence SHA256:</span>
+            <span class="text-zinc-600 text-[10px]">7f01cba88e24f61e89c3b881907de38cbb5920a1</span>
+          </div>
+        </div>
+
+        <div class="pt-2 flex flex-wrap justify-center gap-2">
+          <button onclick="switchTab('findings')" class="px-3.5 py-1.5 bg-white border border-zinc-300 text-zinc-700 rounded-[4px] text-xs font-mono hover:bg-zinc-50 transition-colors">
+            Cancel
+          </button>
+          <button onclick="downloadSignedCapsule()" class="px-4 py-1.5 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] text-xs font-mono font-medium shadow-xs transition-colors flex items-center space-x-1.5">
+            <span>Download Signed Capsule (.json/.tar.gz)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- AST CALL SITE INSPECTION SIDE DRAWER -->
+  <div id="drawerOverlay" onclick="closeInspectorDrawer()" class="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 hidden transition-opacity"></div>
+  <aside id="inspectorDrawer" class="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white z-50 shadow-2xl border-l border-zinc-200 flex flex-col hidden overflow-hidden">
+    <!-- Drawer Header -->
+    <div class="p-3.5 border-b border-zinc-100 flex items-center justify-between bg-zinc-50">
+      <div class="flex items-center space-x-2">
+        <span class="bg-[#EA580C] text-white text-[10px] font-mono font-bold px-1.5 py-0.5 rounded">AST</span>
+        <span id="drawerPkgName" class="font-mono font-bold text-sm text-zinc-900">appdirs</span>
+        <span id="drawerPkgConstraint" class="font-mono text-xs text-zinc-500">==1.4.4</span>
+      </div>
+      <button onclick="closeInspectorDrawer()" class="text-zinc-400 hover:text-zinc-700 p-1 text-sm font-mono">
+        ✕
+      </button>
+    </div>
+
+    <!-- Drawer Content -->
+    <div class="p-4 space-y-4 overflow-y-auto flex-1 font-sans text-xs">
+      <div>
+        <div class="font-mono uppercase text-[10px] text-zinc-400 tracking-wider font-semibold">Risk Profile</div>
+        <div id="drawerRiskTitle" class="font-bold text-zinc-900 mt-1">[Critical] Stale / Abandoned</div>
+        <p id="drawerRiskDesc" class="text-zinc-600 mt-1 leading-relaxed"></p>
+      </div>
+
+      <div class="bg-zinc-50 p-2.5 rounded border border-zinc-200 font-mono text-[11px] space-y-1">
+        <div class="flex justify-between">
+          <span class="text-zinc-400">Manifest Declaration:</span>
+          <span id="drawerManifestLoc" class="font-semibold text-zinc-800"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-zinc-400">Recommended Candidate:</span>
+          <span id="drawerCandidate" class="font-semibold text-emerald-700"></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="font-mono uppercase text-[10px] text-zinc-400 tracking-wider font-semibold mb-2">Detected AST Call Sites &amp; Nodes</div>
+        <div id="drawerCallSites" class="space-y-2">
+          <!-- Populated by app.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer Footer Actions -->
+    <div class="p-3 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between">
+      <button onclick="closeInspectorDrawer()" class="px-3 py-1 bg-white border border-zinc-300 text-zinc-700 rounded-[4px] font-mono text-xs hover:bg-zinc-100">
+        Close
+      </button>
+      <button id="drawerCodemodBtn" class="px-3.5 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] font-mono text-xs font-semibold shadow-xs">
+        Review Codemod Diff →
+      </button>
+    </div>
+  </aside>
+
+  <!-- GLOBAL FOOTER -->
+  <footer class="bg-white border-t border-[#E4E4E7] py-2 px-3 text-[11px] font-mono text-zinc-500 flex flex-col sm:flex-row items-center justify-between gap-1 mt-auto">
+    <div class="flex items-center space-x-2">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+      <span>DepBridge Enterprise Static Analysis Engine v1.4.2</span>
+    </div>
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <span>Keys: [1-5] Tabs</span>
+      <span>[/] Filter</span>
+      <span>[Esc] Close Drawer</span>
+    </div>
+  </footer>
+
+  <!-- Application Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
