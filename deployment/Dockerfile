@@ -7,9 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && groupadd --gid 10001 depbridge && useradd --uid 10001 --gid depbridge --create-home depbridge \
     && mkdir /data && chown depbridge:depbridge /data
 COPY . /app
-RUN python -m pip install '.[verification]'
+# Fail the build if the selected backup UI was accidentally excluded from the context.
+RUN test -f /app/demo_frontend/index.html && test -f /app/demo_frontend/static/start.html \
+    && python -m pip install '.[verification]'
 USER 10001:10001
-ENV DEPBRIDGE_DATA_DIR=/data DEPBRIDGE_FRONTEND_DIR=/app/frontend
+ENV DEPBRIDGE_DATA_DIR=/data DEPBRIDGE_FRONTEND_DIR=/app/demo_frontend
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=3)"

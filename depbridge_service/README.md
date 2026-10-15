@@ -13,10 +13,13 @@ git status --short --branch
 # Only create a venv if absent: py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e '.[dev,verification]'
 $env:DEPBRIDGE_PUBLIC_BASE_URL = 'http://127.0.0.1:8000'
+$env:DEPBRIDGE_FRONTEND_DIR = 'demo_frontend' # Integrated backup; primary frontend stays separate.
 .\.venv\Scripts\python.exe -X utf8 -m uvicorn depbridge_service.app:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
 Health: `http://127.0.0.1:8000/api/health`. Interactive API docs: `http://127.0.0.1:8000/docs`. API requests use the same origin. No CORS configuration or frontend API key is needed.
+
+Backup demo entry: `http://127.0.0.1:8000/static/start.html`. It was imported unchanged from engine commit `fdfd236`. Set `DEPBRIDGE_FRONTEND_DIR=frontend` and restart only after the primary frontend is confirmed pushed and integrated. No frontend files need to be overwritten.
 
 Use `-X utf8` on Windows because the imported engine writes Python check scripts containing Unicode. A default cp1252 interpreter can otherwise produce invalid script source. The Linux image sets `PYTHONUTF8=1`.
 
@@ -69,7 +72,7 @@ Service tests use explicitly controlled test engines to validate request/state/e
 After the frontend teammate confirms their pushed branch and it is merged, restart the service with the model key configured server-side. Run this in a second local PowerShell window:
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check
+.\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check --start-path /static/start.html
 ```
 
 This creates a **new** analysis and comparison, requires actual completed Gemma output, checks the same-origin report/assets, downloads capsule/patch files, and validates manifest hashes, recorded command arguments and the captured runner. Results are saved under a fresh ignored `.depbridge/acceptance/` directory. Missing model configuration/frontend, provider errors, unsupported comparisons or incomplete downloads fail honestly; existing output directories are not overwritten. Browser rendering still needs a visual check. Keep `main` unchanged until this complete workflow passes.

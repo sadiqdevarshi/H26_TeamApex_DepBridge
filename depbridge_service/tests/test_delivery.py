@@ -16,7 +16,7 @@ from depbridge_service.app import create_app
 from depbridge_service.config import Settings
 from depbridge_service.engine import EngineAdapter
 from depbridge_service.models import AnalysisResult, VerificationResult
-from depbridge_service.integration_check import check_capsule, main as acceptance_main
+from depbridge_service.integration_check import asset_paths, check_capsule, main as acceptance_main
 from depbridge_service.service import Service, artifact_path
 
 
@@ -337,3 +337,9 @@ def test_acceptance_preserves_existing_output_directory(tmp_path, capsys):
     saved.write_text("existing result", encoding="utf-8")
     assert acceptance_main(["--output", str(tmp_path)]) == 1
     assert saved.read_text(encoding="utf-8") == "existing result"
+
+
+def test_acceptance_supports_inline_backup_and_external_primary_assets():
+    assert asset_paths(b"<style>body{}</style><script>/* inline */</script>", "http://testserver", "/reports/id") == []
+    html = b'<script src="/static/app.js"></script><link rel="stylesheet" href="/static/styles.css"><script src="https://other.invalid/x.js"></script>'
+    assert asset_paths(html, "http://testserver", "/reports/id") == ["/static/app.js", "/static/styles.css"]

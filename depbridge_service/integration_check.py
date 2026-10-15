@@ -2,14 +2,40 @@
 import argparse
 from datetime import datetime, timezone
 from hashlib import sha256
+from html.parser import HTMLParser
 from io import BytesIO
 import json
 from pathlib import Path
 import sys
 from urllib.error import URLError
+from urllib.parse import urljoin, urlsplit
 from zipfile import BadZipFile, ZipFile
 
 from depbridge_cli.main import Client, segment, wait
+
+
+class Assets(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.urls = []
+
+    def handle_starttag(self, tag, attributes):
+        attrs = dict(attributes)
+        if tag == "script" and attrs.get("src"):
+            self.urls.append(attrs["src"])
+        if tag == "link" and "stylesheet" in attrs.get("rel", "").split() and attrs.get("href"):
+            self.urls.append(attrs["href"])
+
+
+def asset_paths(html, origin, report_path):
+    parser = Assets()
+    parser.feed(html.decode("utf-8"))
+    paths = []
+    for value in parser.urls:
+        url = urlsplit(urljoin(origin + report_path, value))
+        if f"{url.scheme}://{url.netloc}" == origin:
+            paths.append(url.path + ("?" + url.query if url.query else ""))
+    return sorted(set(paths))
 
 
 def check_capsule(content, analysis_id, verification_id):
@@ -48,6 +74,7 @@ def main(argv=None):
     parser.add_argument("--ref")
     parser.add_argument("--wait-timeout", type=float, default=600)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--start-path", help="Optional same-origin repository-entry HTML route, e.g. /static/start.html")
     args = parser.parse_args(argv)
     output = args.output or Path(".depbridge") / "acceptance" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     summary = dict(status="failed", analysis_id=None, verification_id=None)
@@ -63,6 +90,13 @@ def main(argv=None):
         (output / "health.json").write_text(json.dumps(health, indent=2), encoding="utf-8")
         if not health["engine_available"] or not health["model_configured"] or not health["frontend_available"]:
             raise ValueError("Live acceptance requires the engine, a configured server-side model key, and the integrated frontend. No analysis was created.")
+        if args.start_path:
+            if not args.start_path.startswith("/") or args.start_path.startswith("//"):
+                raise ValueError("--start-path must be a same-origin path")
+            with client.open(args.start_path) as response:
+                if response.headers.get_content_type() != "text/html":
+                    raise ValueError("Repository-entry route did not return HTML")
+                (output / "start.html").write_bytes(response.read())
         created = client.json("/api/analyses", dict(repository_url=args.repository, ref=args.ref))
         analysis_id = summary["analysis_id"] = created["analysis_id"]
         print(json.dumps(dict(stage="analysis_submitted", **created)), flush=True)
@@ -72,13 +106,15 @@ def main(argv=None):
             raise ValueError("New analysis did not complete a real Gemma request. Inspect the saved analysis record; no fixture was substituted.")
         if record["data_mode"] != "live" or not record["repository"]["revision"]:
             raise ValueError("Analysis must be live and resolve an exact revision")
-        with client.open(f"/reports/{segment(analysis_id)}") as response:
+        report_path = f"/reports/{segment(analysis_id)}"
+        with client.open(report_path) as response:
             if response.headers.get_content_type() != "text/html":
                 raise ValueError("Report route did not return HTML")
             html = response.read()
         (output / "report.html").write_bytes(html)
-        for asset in ("app.js", "styles.css"):
-            with client.open(f"/static/{asset}") as response:
+        assets = asset_paths(html, client.origin, report_path)
+        for asset in assets:
+            with client.open(asset) as response:
                 if not response.read():
                     raise ValueError(f"Frontend asset is empty: {asset}")
         finding = next(f for f in record["findings"] if f["dependency_name"] == "appdirs")
@@ -99,6 +135,7 @@ def main(argv=None):
         summary.update(status="passed", revision=exported["repository"]["revision"],
                        model=exported["ai"]["model_version"], comparison_outcome=verification["outcome"],
                        check_count=len(verification["checks"]), report_url=created["report_url"],
+                       same_origin_assets_checked=assets,
                        limitations=verification["limitations"])
         return_code = 0
     except (RuntimeError, ValueError, OSError, URLError, BadZipFile, KeyError, StopIteration) as exc:

@@ -13,6 +13,7 @@ git status --short --branch
 py -3.12 -m venv .venv  # Only if the virtual environment does not already exist.
 .\.venv\Scripts\python.exe -m pip install -e '.[dev,verification]'
 $env:DEPBRIDGE_PUBLIC_BASE_URL = 'http://127.0.0.1:8000'
+$env:DEPBRIDGE_FRONTEND_DIR = 'demo_frontend'
 .\.venv\Scripts\python.exe -X utf8 -m uvicorn depbridge_service.app:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
@@ -26,32 +27,36 @@ The following commands run over SSH on the DigitalOcean Droplet, **not in local 
 git clone --branch service https://github.com/sadiqdevarshi/H26_TeamApex_DepBridge.git /opt/depbridge
 cd /opt/depbridge
 sudo install -d -m 700 /etc/depbridge
-sudo install -m 600 .env.example /etc/depbridge/service.env
+sudo install -m 600 deployment/service.env.example /etc/depbridge/service.env
 sudoedit /etc/depbridge/service.env
 ```
 
-Set these values in `/etc/depbridge/service.env`:
+For the initial IP-only deployment, set these values in `/etc/depbridge/service.env`:
 
 ```dotenv
-DEPBRIDGE_PUBLIC_BASE_URL=https://depbridge.example.org
-DEPBRIDGE_SITE_ADDRESS=depbridge.example.org
+DEPBRIDGE_PUBLIC_BASE_URL=http://DROPLET_IP
+DEPBRIDGE_SITE_ADDRESS=:80
+DEPBRIDGE_FRONTEND_DIR=/app/demo_frontend
 DEPBRIDGE_ENGINE_MODE=auto
 DEPBRIDGE_ALLOWED_REPOSITORIES=rishrek/LinkWatch
 DEPBRIDGE_MAX_PENDING_JOBS=8
 GEMINI_API_KEY=replace-on-server-only
 ```
 
-Use the real domain, point its DNS to the Droplet, and allow inbound TCP 80/443. Restrict inbound SSH (22) to your own IP in the DigitalOcean Cloud Firewall. Keep API port 8000 unpublished. Caddy handles HTTPS for the domain. For an initial IP-only HTTP check, use `DEPBRIDGE_SITE_ADDRESS=:80` and `DEPBRIDGE_PUBLIC_BASE_URL=http://YOUR_DROPLET_IP` instead.
+Replace `DROPLET_IP` with the actual public IP. Allow inbound TCP 80 and restrict inbound SSH (22) to your own IP in the DigitalOcean Cloud Firewall. Keep API port 8000 unpublished. The template leaves model keys blank; enter a real key only in this server-side file. HTTP is for the initial IP-only demo. For a domain with HTTPS later, point DNS to the Droplet, allow TCP 443, set `DEPBRIDGE_SITE_ADDRESS` to the domain and `DEPBRIDGE_PUBLIC_BASE_URL` to its HTTPS origin, then recreate the containers.
 
 ```sh
 # DigitalOcean server only
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml up -d --build
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml ps
-curl --fail https://depbridge.example.org/api/health
+curl --fail http://DROPLET_IP/api/health
+curl --fail http://DROPLET_IP/static/start.html
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml logs --tail=100 api
 ```
 
-Merge/review the engine and frontend through Git before building the integrated image. The frontend must provide `frontend/index.html` and `frontend/static/`; no Node build is required for the handoff's static layout. Rebuild after merging either component. Restarted queued/running jobs become honest failures rather than silently resuming repository execution.
+The integrated backup from engine commit `fdfd236` provides `demo_frontend/index.html` and `demo_frontend/static/start.html`; the Docker build copies it and the default image serves it. Open `/static/start.html` to submit a repository. No Node build is required. When the primary frontend is confirmed pushed and reviewed, merge it through Git and set `DEPBRIDGE_FRONTEND_DIR=/app/frontend` in the server environment file. Rebuild after merging either component. Restarted queued/running jobs become honest failures rather than silently resuming repository execution.
+
+Compose uses `${DEPBRIDGE_FRONTEND_DIR:-/app/demo_frontend}` rather than hardcoding the primary folder. Use absolute container paths in the server file: `/app/demo_frontend` for the backup or `/app/frontend` for the primary. The Dockerfile copies the repository including the backup and checks that both backup HTML files exist before completing the build. Configuration changes require recreating the API container; they do not require copying files over a teammate's frontend.
 
 ```sh
 # DigitalOcean server only: update after reviewed Git integration
