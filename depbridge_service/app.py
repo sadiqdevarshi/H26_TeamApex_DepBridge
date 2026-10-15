@@ -105,6 +105,9 @@ def create_app(settings=None, engine=None):
 
     @app.get("/")
     def root():
+        index = settings.frontend_dir / "index.html"
+        if index.is_file():
+            return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-cache"})
         return HTMLResponse("<!doctype html><html lang='en'><title>DepBridge</title><h1>DepBridge</h1>"
                             "<p>Submit a public repository using the CLI or <a href='/docs'>API documentation</a>.</p></html>")
 

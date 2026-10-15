@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: depbridge-apex-free
+    runtime: docker
+    plan: free
+    branch: deploy-render
+    dockerfilePath: ./deployment/Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMMA_MODEL
+        value: gemma-4-26b-a4b-it
+      - key: DEPBRIDGE_FRONTEND_DIR
+        value: /app/demo_frontend
+      - key: DEPBRIDGE_ALLOWED_REPOSITORIES
+        value: rishrek/LinkWatch
+      - key: DEPBRIDGE_MAX_PENDING_JOBS
+        value: "2"
