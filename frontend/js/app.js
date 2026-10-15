@@ -1,4 +1,5 @@
 // DepBridge Application Logic & Interactive Workflows
+// Updated with Humanist Sans (IBM Plex Sans), Code Mono (IBM Plex Mono), Calm Palette
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -14,7 +15,6 @@ function initApp() {
   renderFindingsTable();
   renderTopologyCanvas();
   setupKeyboardShortcuts();
-  setupFilterHandlers();
 }
 
 // ==========================================
@@ -28,8 +28,7 @@ function switchTab(tabId) {
     
     const btn = document.getElementById('tab-' + v);
     if (btn) {
-      btn.classList.remove('text-[#EA580C]', 'font-semibold', 'border-[#EA580C]');
-      btn.classList.add('text-zinc-500', 'border-transparent');
+      btn.classList.remove('active');
     }
   });
 
@@ -38,8 +37,7 @@ function switchTab(tabId) {
 
   const activeBtn = document.getElementById('tab-' + tabId);
   if (activeBtn) {
-    activeBtn.classList.add('text-[#EA580C]', 'font-semibold', 'border-[#EA580C]');
-    activeBtn.classList.remove('text-zinc-500', 'border-transparent');
+    activeBtn.classList.add('active');
   }
 
   currentActiveTab = tabId;
@@ -86,8 +84,10 @@ function renderFindingsTable() {
     return true;
   });
 
-  document.getElementById('filteredCountLabel').innerText = 
-    `Showing ${filtered.length} of ${window.DepBridgeData.repository.stats.totalPackages} analyzed dependencies`;
+  const countLabel = document.getElementById('filteredCountLabel');
+  if (countLabel) {
+    countLabel.innerText = `Showing ${filtered.length} of ${window.DepBridgeData.repository.stats.totalPackages} analyzed dependencies`;
+  }
 
   tbody.innerHTML = filtered.map(pkg => {
     const isCritical = pkg.severity === 'critical';
@@ -96,78 +96,66 @@ function renderFindingsTable() {
 
     let severityBadge = '';
     if (isCritical) {
-      severityBadge = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold bg-white border border-red-200 text-red-700 shadow-2xs">
-        <span class="w-1.5 h-1.5 rounded-full bg-red-600 mr-1"></span> ${pkg.riskTitle}
-      </span>`;
+      severityBadge = `<span class="status-pill status-pill-critical">${pkg.riskTitle}</span>`;
     } else if (isMedium) {
-      severityBadge = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold bg-white border border-amber-200 text-amber-700">
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1"></span> ${pkg.riskTitle}
-      </span>`;
+      severityBadge = `<span class="status-pill status-pill-warning">${pkg.riskTitle}</span>`;
     } else {
-      severityBadge = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-zinc-50 border border-zinc-200 text-zinc-700">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span> ${pkg.riskTitle}
-      </span>`;
+      severityBadge = `<span class="status-pill status-pill-pass">✓ ${pkg.riskTitle}</span>`;
     }
 
     let verificationBadge = '';
     if (pkg.verificationType === 'success') {
-      verificationBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-        ${pkg.verificationStatus}
-      </span>`;
+      verificationBadge = `<span class="status-pill status-pill-pass">✓ ${pkg.verificationStatus}</span>`;
     } else if (pkg.verificationType === 'warning') {
-      verificationBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans font-medium bg-amber-50 text-amber-800 border border-amber-200">
-        ${pkg.verificationStatus}
-      </span>`;
+      verificationBadge = `<span class="status-pill status-pill-warning">${pkg.verificationStatus}</span>`;
     } else {
-      verificationBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans font-medium bg-zinc-100 text-zinc-600">
-        ${pkg.verificationStatus}
-      </span>`;
+      verificationBadge = `<span class="status-pill status-pill-neutral">${pkg.verificationStatus}</span>`;
     }
 
-    const rowHighlight = isCritical ? 'bg-orange-50/20 hover:bg-orange-50/40 border-l-2 border-l-[#EA580C]' : 'hover:bg-zinc-50';
+    const rowClass = isCritical ? 'highlight-critical' : '';
 
     return `
-      <tr class="${rowHighlight} transition-colors table-row-item">
-        <td class="py-2.5 px-3">
-          <div class="flex items-center space-x-1.5">
-            <span class="font-bold text-[#09090B] text-xs">${pkg.name}</span>
-            <span class="text-zinc-500 text-[11px] font-mono">${pkg.constraint}</span>
-            ${pkg.tag === 'CVE/EOL' ? `<span class="text-[9px] bg-red-100 text-red-700 px-1 rounded border border-red-200 font-sans font-bold">CVE/EOL</span>` : ''}
-            ${pkg.tag === 'INCOMPATIBLE' ? `<span class="text-[9px] bg-red-100 text-red-700 px-1 rounded border border-red-200 font-sans font-bold">PY3.12+</span>` : ''}
-            ${pkg.tag === 'V1→V2' ? `<span class="text-[9px] bg-amber-100 text-amber-800 px-1 rounded border border-amber-200 font-sans font-bold">V1→V2</span>` : ''}
+      <tr class="${rowClass}">
+        <td>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-code font-semibold text-[15px] text-[#1A1A1A]">${pkg.name}</span>
+            <span class="font-code text-[14px] text-[#667085]">${pkg.constraint}</span>
+            ${pkg.tag === 'CVE/EOL' ? `<span class="status-pill status-pill-critical" style="height: 22px; padding: 0 6px; font-size: 12px;">CVE/EOL</span>` : ''}
+            ${pkg.tag === 'INCOMPATIBLE' ? `<span class="status-pill status-pill-critical" style="height: 22px; padding: 0 6px; font-size: 12px;">Python 3.12+</span>` : ''}
+            ${pkg.tag === 'V1→V2' ? `<span class="status-pill status-pill-warning" style="height: 22px; padding: 0 6px; font-size: 12px;">v1→v2</span>` : ''}
           </div>
         </td>
-        <td class="py-2.5 px-3 text-zinc-600 text-[11px]">
-          <span class="bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200 font-mono">${pkg.manifest}</span>
+        <td>
+          <span class="font-code text-[14px] text-[#344054]">${pkg.manifest}</span>
         </td>
-        <td class="py-2.5 px-3">
-          ${severityBadge}
-          <div class="text-[10px] text-zinc-500 font-sans mt-0.5 max-w-xs truncate">${pkg.riskDescription}</div>
+        <td>
+          <div>${severityBadge}</div>
+          <div class="text-[13px] text-[#667085] mt-1 max-w-xs truncate">${pkg.riskDescription}</div>
         </td>
-        <td class="py-2.5 px-3 text-zinc-700 cursor-pointer group" onclick="openInspectorDrawer('${pkg.id}')">
-          <div class="font-sans font-medium text-zinc-900 group-hover:text-[#EA580C] flex items-center gap-1">
+        <td class="cursor-pointer group" onclick="openInspectorDrawer('${pkg.id}')">
+          <div class="font-medium text-[#1A1A1A] text-[14px] group-hover:text-[#D9480F] flex items-center gap-1">
             <span>${pkg.astEvidence}</span>
-            <span class="text-[10px] text-zinc-400 group-hover:text-[#EA580C]">↗</span>
+            <span class="text-[#667085] group-hover:text-[#D9480F]">↗</span>
           </div>
-          <div class="text-[10px] text-zinc-500 truncate mt-0.5 font-mono">${pkg.callSitesSummary}</div>
+          <div class="text-[13px] text-[#667085] font-code mt-0.5 truncate">${pkg.callSitesSummary}</div>
         </td>
-        <td class="py-2.5 px-3">
-          <div class="font-bold text-zinc-900 flex items-center space-x-1">
-            <span class="${pkg.recommendedCandidate !== 'None needed' ? 'text-[#EA580C]' : 'text-zinc-500'} font-mono">${pkg.recommendedCandidate}</span>
-            <span class="text-zinc-500 text-[11px] font-mono">${pkg.recommendedConstraint}</span>
+        <td>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-code text-[14px] font-semibold ${pkg.recommendedCandidate !== 'None needed' ? 'text-[#1E4E8C]' : 'text-[#667085]'}">${pkg.recommendedCandidate}</span>
+            <span class="font-code text-[13px] text-[#667085]">${pkg.recommendedConstraint}</span>
           </div>
-          <div class="text-[10px] ${pkg.recommendedCandidate !== 'None needed' ? 'text-emerald-600' : 'text-zinc-400'} font-sans">${pkg.candidateNote}</div>
+          <div class="text-[13px] ${pkg.recommendedCandidate !== 'None needed' ? 'text-[#1E4E8C]' : 'text-[#667085]'} mt-0.5">${pkg.candidateNote}</div>
         </td>
-        <td class="py-2.5 px-3">
+        <td>
           ${verificationBadge}
         </td>
-        <td class="py-2.5 px-3 text-right">
-          <div class="flex items-center justify-end space-x-1.5">
-            <button onclick="openInspectorDrawer('${pkg.id}')" class="px-2 py-1 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 rounded-[4px] text-[11px] font-sans font-medium transition-colors">
+        <td class="text-right">
+          <div class="flex items-center justify-end gap-2">
+            <button onclick="openInspectorDrawer('${pkg.id}')" class="btn-sm-secondary">
               Inspect
             </button>
             ${pkg.codemodAvailable ? `
-              <button onclick="openCodemodView('${pkg.id}')" class="px-2.5 py-1 bg-[#EA580C] hover:bg-[#C2410C] text-white rounded-[4px] text-[11px] font-sans font-semibold transition-colors shadow-xs">
+              <button onclick="openCodemodView('${pkg.id}')" class="btn-sm-primary">
                 Codemod →
               </button>
             ` : ''}
@@ -184,15 +172,13 @@ function setFilter(type) {
   pills.forEach(p => {
     const el = document.getElementById('filter-' + p);
     if (el) {
-      el.classList.remove('bg-zinc-900', 'text-white');
-      el.classList.add('bg-zinc-100', 'text-zinc-700');
+      el.classList.remove('active');
     }
   });
 
   const current = document.getElementById('filter-' + type);
   if (current) {
-    current.classList.add('bg-zinc-900', 'text-white');
-    current.classList.remove('bg-zinc-100', 'text-zinc-700');
+    current.classList.add('active');
   }
 
   renderFindingsTable();
@@ -200,10 +186,6 @@ function setFilter(type) {
 
 function setManifestFilter(manifest) {
   currentManifest = manifest;
-  const btn = document.getElementById('manifestFilterBtn');
-  if (btn) {
-    btn.innerText = manifest === 'all' ? 'Manifest: All' : manifest;
-  }
   renderFindingsTable();
 }
 
@@ -232,24 +214,24 @@ function openInspectorDrawer(pkgId) {
   const callSitesContainer = document.getElementById('drawerCallSites');
   if (pkg.callSites && pkg.callSites.length > 0) {
     callSitesContainer.innerHTML = pkg.callSites.map(cs => `
-      <div class="p-2.5 rounded bg-zinc-50 border border-zinc-200 font-mono text-xs space-y-1">
-        <div class="flex items-center justify-between text-[11px] text-zinc-500">
-          <span class="font-semibold text-zinc-800">${cs.file}:${cs.line}</span>
-          <span class="bg-zinc-200/80 px-1.5 py-0.2 rounded text-[10px] text-zinc-700">${cs.node}</span>
+      <div class="p-3 rounded-[6px] bg-[#F7F7F5] border border-[#E5E5E0] space-y-1.5">
+        <div class="flex items-center justify-between text-[13px]">
+          <span class="font-code font-semibold text-[#1A1A1A]">${cs.file}:${cs.line}</span>
+          <span class="status-pill status-pill-neutral" style="height: 22px; padding: 0 8px; font-size: 12px;">${cs.node}</span>
         </div>
-        <div class="p-1.5 bg-[#090D16] text-zinc-200 rounded text-[11px] overflow-x-auto">
+        <div class="p-2.5 bg-[#1C1C1E] text-[#E5E5EA] rounded-[6px] text-[13px] font-code overflow-x-auto">
           <code>${escapeHtml(cs.code)}</code>
         </div>
-        <div class="text-[10px] text-zinc-500 font-sans">${cs.context}</div>
+        <div class="text-[13px] text-[#475467]">${cs.context}</div>
       </div>
     `).join('');
   } else {
-    callSitesContainer.innerHTML = `<div class="p-3 text-zinc-400 font-mono text-xs">No direct AST call sites detected.</div>`;
+    callSitesContainer.innerHTML = `<div class="p-4 text-[#667085] text-[14px]">No direct AST call sites detected.</div>`;
   }
 
   const codemodBtn = document.getElementById('drawerCodemodBtn');
   if (pkg.codemodAvailable) {
-    codemodBtn.style.display = 'block';
+    codemodBtn.style.display = 'inline-flex';
     codemodBtn.onclick = () => {
       closeInspectorDrawer();
       openCodemodView(pkg.id);
@@ -260,7 +242,6 @@ function openInspectorDrawer(pkgId) {
 
   overlay.classList.remove('hidden');
   drawer.classList.remove('hidden');
-  drawer.classList.add('animate-drawer');
 }
 
 function closeInspectorDrawer() {
@@ -297,11 +278,11 @@ function renderCodemodView(pkgId) {
   // Render Checklist
   const checklistContainer = document.getElementById('codemodChecklist');
   checklistContainer.innerHTML = codemodData.checklist.map((item, idx) => `
-    <label class="flex items-start space-x-2 p-2 rounded bg-zinc-50 border border-zinc-200 text-xs font-mono cursor-pointer hover:bg-zinc-100/70 transition-colors">
-      <input type="checkbox" id="check-${item.id}" ${item.checked ? 'checked' : ''} onchange="updateChecklistCount()" class="mt-0.5 accent-[#EA580C] rounded-[2px]" />
+    <label class="flex items-start gap-3 p-3 rounded-[6px] bg-[#FAFAF8] border border-[#E5E5E0] text-[14px] cursor-pointer hover:bg-white transition-colors">
+      <input type="checkbox" id="check-${item.id}" ${item.checked ? 'checked' : ''} onchange="updateChecklistCount()" class="mt-1 w-4 h-4 accent-[#D9480F] rounded" />
       <div>
-        <div class="text-zinc-900 font-medium">${item.label}</div>
-        <div class="text-zinc-400 text-[10px]">${item.desc}</div>
+        <div class="text-[#1A1A1A] font-medium">${item.label}</div>
+        <div class="text-[#667085] text-[13px] mt-0.5">${item.desc}</div>
       </div>
     </label>
   `).join('');
@@ -327,7 +308,7 @@ function renderDiffFiles(files) {
   if (!files || files.length === 0) return;
 
   tabContainer.innerHTML = files.map((f, idx) => `
-    <button onclick="switchDiffFile(${idx})" class="font-mono text-[11px] px-2 py-0.5 rounded-[4px] font-semibold transition-colors ${idx === currentDiffFileIndex ? 'bg-white border border-zinc-300 text-zinc-900 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'}">
+    <button onclick="switchDiffFile(${idx})" class="h-[32px] px-3 rounded-[6px] font-code text-[13px] font-medium transition-colors ${idx === currentDiffFileIndex ? 'bg-white border border-[#D0D5DD] text-[#1A1A1A]' : 'text-[#475467] hover:text-[#1A1A1A]'}">
       ${f.name}
     </button>
   `).join('');
@@ -340,23 +321,23 @@ function renderDiffFiles(files) {
   const codeContainer = document.getElementById('diffCodeBlock');
   codeContainer.innerHTML = currentFile.diff.map(line => {
     if (line.type === 'header') {
-      return `<div class="text-zinc-500 select-none pb-2 border-b border-zinc-800 mb-2">${escapeHtml(line.text)}</div>`;
+      return `<div class="text-[#8E8E93] select-none pb-2 border-b border-[#3A3A3C] mb-2 font-code text-[13px]">${escapeHtml(line.text)}</div>`;
     } else if (line.type === 'del') {
       return `
-        <div class="bg-red-950/60 text-red-300 px-1 -mx-1 border-l-2 border-red-500 flex font-mono">
-          <span class="select-none text-red-500 w-8 inline-block">${line.line} -</span>
-          <span class="font-semibold">${escapeHtml(line.text)}</span>
+        <div class="diff-del-row flex font-code text-[13px]">
+          <span class="select-none text-[#F87171] w-10 inline-block shrink-0">${line.line} -</span>
+          <span>${escapeHtml(line.text)}</span>
         </div>`;
     } else if (line.type === 'add') {
       return `
-        <div class="bg-emerald-950/60 text-emerald-300 px-1 -mx-1 border-l-2 border-emerald-500 flex font-mono">
-          <span class="select-none text-emerald-500 w-8 inline-block">${line.line} +</span>
-          <span class="font-semibold">${escapeHtml(line.text)}</span>
+        <div class="diff-add-row flex font-code text-[13px]">
+          <span class="select-none text-[#60A5FA] w-10 inline-block shrink-0">${line.line} +</span>
+          <span>${escapeHtml(line.text)}</span>
         </div>`;
     } else {
       return `
-        <div class="text-zinc-400 font-mono">
-          <span class="select-none text-zinc-600 w-8 inline-block">${line.line || ''} |</span>
+        <div class="text-[#D1D1D6] font-code text-[13px] py-0.5 flex">
+          <span class="select-none text-[#636366] w-10 inline-block shrink-0">${line.line || ''} |</span>
           <span>${escapeHtml(line.text)}</span>
         </div>`;
     }
@@ -388,38 +369,38 @@ function retriggerVerification() {
   const statusBadge = document.getElementById('verificationStatusBadge');
   const durLabel = document.getElementById('verificationDurationLabel');
 
-  statusBadge.innerText = 'RUNNING IN EPHEMERAL DOCKER...';
-  statusBadge.className = 'bg-orange-100 text-[#EA580C] border border-orange-200 text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold animate-pulse';
+  statusBadge.innerText = 'Running in ephemeral sandbox...';
+  statusBadge.className = 'status-pill status-pill-warning';
 
   terminal.innerHTML = `
-    <div class="text-zinc-500">$ pytest tests/ -q</div>
-    <div class="text-zinc-400">Spinning up sandbox container python:3.11-slim...</div>
-    <div class="text-[#EA580C] font-mono animate-pulse">Running test harness (34 test cases)...</div>
+    <div class="text-[#8E8E93]">$ pytest tests/ -q</div>
+    <div class="text-[#AEAEB2]">Spinning up sandbox container python:3.11-slim...</div>
+    <div class="text-[#FDBA74]">Running test harness (34 test cases)...</div>
   `;
 
   let step = 0;
   const timer = setInterval(() => {
     step++;
     if (step === 1) {
-      terminal.innerHTML += `<div class="text-emerald-400">..................................</div>`;
+      terminal.innerHTML += `<div class="text-[#93C5FD]">..................................</div>`;
     } else if (step === 2) {
       terminal.innerHTML += `
-        <div class="bg-emerald-950/40 text-emerald-300 p-1.5 rounded border border-emerald-800/50 my-1 text-[10px]">
-          <div>[✓] <span class="font-bold">Zero Deprecation Warnings:</span> platformdirs active.</div>
-          <div class="text-emerald-400/80">    Deterministic cache path: /home/runner/.cache/LinkWatch</div>
+        <div class="bg-[#242A38] text-[#93C5FD] p-2.5 rounded-[6px] border border-[#2B3950] my-2 text-[13px]">
+          <div>[✓] <span class="font-bold">Zero deprecation warnings:</span> platformdirs active.</div>
+          <div class="text-[#BFDBFE]">    Deterministic cache path: /home/runner/.cache/LinkWatch</div>
         </div>
       `;
     } else if (step === 3) {
       clearInterval(timer);
       terminal.innerHTML += `
-        <div class="text-emerald-400 font-bold">34 passed, 0 warnings in 1.28s. All checks green.</div>
-        <div class="text-zinc-500 mt-2">$ echo $?</div>
-        <div class="text-emerald-400 font-semibold">0</div>
+        <div class="text-[#93C5FD] font-semibold mt-1">34 passed, 0 warnings in 1.28s. All checks passed.</div>
+        <div class="text-[#8E8E93] mt-2">$ echo $?</div>
+        <div class="text-[#93C5FD] font-semibold">0</div>
       `;
-      statusBadge.innerText = 'STABLE';
-      statusBadge.className = 'bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold';
+      statusBadge.innerHTML = '✓ Stable';
+      statusBadge.className = 'status-pill status-pill-pass';
       durLabel.innerText = '1.28s';
-      showToast('Sandbox verification passed: 0 regressions.');
+      showToast('Sandbox verification passed: zero regressions detected.');
     }
   }, 350);
 }
@@ -430,8 +411,8 @@ function retriggerVerification() {
 function handleReScan() {
   const btn = document.getElementById('rescanBtn');
   const icon = document.getElementById('rescanIcon');
-  icon.classList.add('animate-spin');
-  btn.classList.add('opacity-75');
+  if (icon) icon.classList.add('animate-spin');
+  if (btn) btn.disabled = true;
 
   showToast('Starting AST graph traversal across 43 source files...');
 
@@ -440,15 +421,15 @@ function handleReScan() {
   }, 400);
 
   setTimeout(() => {
-    icon.classList.remove('animate-spin');
-    btn.classList.remove('opacity-75');
+    if (icon) icon.classList.remove('animate-spin');
+    if (btn) btn.disabled = false;
     showToast('Static analysis complete. AST parity verified at 100%.');
     renderFindingsTable();
   }, 900);
 }
 
 // ==========================================
-// Signed Capsule Real Exporter (.tar.gz / JSON)
+// Signed Capsule Real Exporter (.json)
 // ==========================================
 function downloadSignedCapsule() {
   const capsule = {
@@ -498,24 +479,30 @@ function downloadSignedCapsule() {
 }
 
 // ==========================================
-// Repository Topology Visualizer (SVG/Canvas)
+// Repository Topology Visualizer (SVG)
+// Colors: Blue for files, Red for deprecated, Blue-slate for replacements, Orange for repo. NO GREEN.
 // ==========================================
 function renderTopologyCanvas() {
   const container = document.getElementById('topologyGraphContainer');
   if (!container) return;
 
-  const width = container.clientWidth || 800;
-  const height = 360;
+  const width = Math.min(container.clientWidth || 900, 1100);
+  const height = 380;
 
+  // Nodes Palette:
+  // Root repo: #D9480F (Orange)
+  // Source files: #2563EB (Blue)
+  // Deprecated packages: #B42318 (Brick Red)
+  // Replacement candidates & healthy: #1E4E8C (Blue-slate)
   const nodes = [
-    { id: "root", label: "rishrek/LinkWatch", type: "root", x: width * 0.15, y: height * 0.5, r: 24, color: "#EA580C" },
-    { id: "config", label: "config.py", type: "file", x: width * 0.40, y: height * 0.25, r: 16, color: "#3B82F6" },
-    { id: "storage", label: "storage.py", type: "file", x: width * 0.40, y: height * 0.75, r: 16, color: "#3B82F6" },
-    { id: "appdirs", label: "appdirs (1.4.4)", type: "dep-critical", x: width * 0.68, y: height * 0.35, r: 18, color: "#EF4444" },
-    { id: "platformdirs", label: "platformdirs", type: "candidate", x: width * 0.90, y: height * 0.35, r: 18, color: "#10B981" },
-    { id: "nose", label: "nose (1.3.7)", type: "dep-critical", x: width * 0.68, y: height * 0.75, r: 18, color: "#EF4444" },
-    { id: "pytest", label: "pytest (8.1)", type: "candidate", x: width * 0.90, y: height * 0.75, r: 18, color: "#10B981" },
-    { id: "requests", label: "requests", type: "dep-healthy", x: width * 0.45, y: height * 0.5, r: 14, color: "#10B981" }
+    { id: "root", label: "rishrek/LinkWatch", type: "root", x: width * 0.12, y: height * 0.5, r: 24, color: "#D9480F" },
+    { id: "config", label: "config.py", type: "file", x: width * 0.38, y: height * 0.25, r: 16, color: "#2563EB" },
+    { id: "storage", label: "storage.py", type: "file", x: width * 0.38, y: height * 0.75, r: 16, color: "#2563EB" },
+    { id: "appdirs", label: "appdirs (1.4.4)", type: "dep-critical", x: width * 0.66, y: height * 0.35, r: 18, color: "#B42318" },
+    { id: "platformdirs", label: "platformdirs (4.2)", type: "candidate", x: width * 0.90, y: height * 0.35, r: 18, color: "#1E4E8C" },
+    { id: "nose", label: "nose (1.3.7)", type: "dep-critical", x: width * 0.66, y: height * 0.75, r: 18, color: "#B42318" },
+    { id: "pytest", label: "pytest (8.1)", type: "candidate", x: width * 0.90, y: height * 0.75, r: 18, color: "#1E4E8C" },
+    { id: "requests", label: "requests (2.31)", type: "dep-healthy", x: width * 0.42, y: height * 0.5, r: 15, color: "#1E4E8C" }
   ];
 
   const links = [
@@ -533,10 +520,10 @@ function renderTopologyCanvas() {
     <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" class="overflow-visible select-none">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 1 L 10 5 L 0 9 z" fill="#CBD5E1" />
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#D0D5DD" />
         </marker>
-        <marker id="arrow-green" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 1 L 10 5 L 0 9 z" fill="#10B981" />
+        <marker id="arrow-blue" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#1E4E8C" />
         </marker>
       </defs>
   `;
@@ -546,9 +533,9 @@ function renderTopologyCanvas() {
     const source = nodes.find(n => n.id === link.from);
     const target = nodes.find(n => n.id === link.to);
     if (source && target) {
-      const stroke = link.dashed ? "#10B981" : "#E2E8F0";
-      const dash = link.dashed ? "stroke-dasharray='4 3'" : "";
-      const marker = link.dashed ? "marker-end='url(#arrow-green)'" : "marker-end='url(#arrow)'";
+      const stroke = link.dashed ? "#1E4E8C" : "#E5E5E0";
+      const dash = link.dashed ? "stroke-dasharray='5 4'" : "";
+      const marker = link.dashed ? "marker-end='url(#arrow-blue)'" : "marker-end='url(#arrow)'";
       svgContent += `
         <line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" stroke="${stroke}" stroke-width="2" ${dash} ${marker} />
       `;
@@ -560,8 +547,8 @@ function renderTopologyCanvas() {
     svgContent += `
       <g class="graph-node" onclick="handleNodeClick('${node.id}')">
         <circle cx="${node.x}" cy="${node.y}" r="${node.r}" fill="${node.color}" />
-        <circle cx="${node.x}" cy="${node.y}" r="${node.r + 4}" fill="none" stroke="${node.color}" stroke-width="1.5" stroke-opacity="0.3" />
-        <text x="${node.x}" y="${node.y + node.r + 15}" text-anchor="middle" font-family="Fira Code, monospace" font-size="10" fill="#334155" font-weight="600">${node.label}</text>
+        <circle cx="${node.x}" cy="${node.y}" r="${node.r + 5}" fill="none" stroke="${node.color}" stroke-width="1.5" stroke-opacity="0.25" />
+        <text x="${node.x}" y="${node.y + node.r + 18}" text-anchor="middle" font-family="'IBM Plex Sans', sans-serif" font-size="13" fill="#344054" font-weight="500">${node.label}</text>
       </g>
     `;
   });
@@ -578,12 +565,12 @@ function handleNodeClick(nodeId) {
   } else if (nodeId === 'config' || nodeId === 'storage') {
     openInspectorDrawer('appdirs');
   } else {
-    showToast(`AST Node inspected: ${nodeId}`);
+    showToast(`AST node inspected: ${nodeId}`);
   }
 }
 
 // ==========================================
-// Toast System
+// Toast Notification
 // ==========================================
 function showToast(message) {
   let container = document.getElementById('toast-container');
@@ -594,10 +581,10 @@ function showToast(message) {
   }
 
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = 'clean-toast';
   toast.innerHTML = `
     <span>${escapeHtml(message)}</span>
-    <button onclick="this.parentElement.remove()" class="text-zinc-400 hover:text-white ml-2 text-xs">✕</button>
+    <button onclick="this.parentElement.remove()" class="text-[#98A2B3] hover:text-white ml-3 text-[14px] cursor-pointer">✕</button>
   `;
   container.appendChild(toast);
 
@@ -607,11 +594,11 @@ function showToast(message) {
 }
 
 // ==========================================
-// Keyboard Shortcuts & Helpers
+// Keyboard Shortcuts
 // ==========================================
 function setupKeyboardShortcuts() {
   window.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
     if (e.key === '1') switchTab('findings');
     else if (e.key === '2') switchTab('codemod');
@@ -627,41 +614,11 @@ function setupKeyboardShortcuts() {
   });
 }
 
-function setupFilterHandlers() {
-  const searchInput = document.getElementById('searchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      renderFindingsTable();
-    });
-  }
-}
-
-function toggleTheme() {
-  document.body.classList.toggle('dark-theme');
-  const isDark = document.body.classList.contains('dark-theme');
-  showToast(isDark ? 'Cyber Dark mode enabled' : 'Enterprise Light mode enabled');
-}
-
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
 }
-
-window.switchTab = switchTab;
-window.setFilter = setFilter;
-window.setManifestFilter = setManifestFilter;
-window.filterRows = filterRows;
-window.openCodemodView = openCodemodView;
-window.openInspectorDrawer = openInspectorDrawer;
-window.closeInspectorDrawer = closeInspectorDrawer;
-window.switchDiffFile = switchDiffFile;
-window.copyPatch = copyPatch;
-window.retriggerVerification = retriggerVerification;
-window.handleReScan = handleReScan;
-window.downloadSignedCapsule = downloadSignedCapsule;
-window.handleNodeClick = handleNodeClick;
-window.toggleTheme = toggleTheme;
