@@ -1,0 +1,2 @@
+# Shared runtime dependencies; coordinated with the supplied engine dependency list.
+-e .

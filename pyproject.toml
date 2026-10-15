@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "depbridge"
+version = "0.1.0"
+description = "Dependency migration service, evidence capsules, and thin CLI"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "packaging>=24,<27",
+  "google-genai>=1,<2",
+]
+
+[project.optional-dependencies]
+verification = ["appdirs>=1.4.4,<2", "platformdirs>=4,<5", "pytest>=8,<10"]
+dev = ["httpx>=0.28,<1", "pytest>=8,<10"]
+
+[project.scripts]
+depbridge = "depbridge_cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["depbridge_service*", "depbridge_cli*", "depbridge_engine*"]

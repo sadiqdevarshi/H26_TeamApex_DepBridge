@@ -1,0 +1,14 @@
+.git
+.venv
+.depbridge
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+deployment/secrets
+**/*.pem
+**/*.key
+dist
+build
