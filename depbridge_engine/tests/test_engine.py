@@ -5,6 +5,7 @@ from depbridge_engine.engine import _generate_with_retry
 from types import SimpleNamespace
 import json
 import sys
+from depbridge_engine.verification import _execute
 
 
 def test_url_rejects_credentials_options_and_other_hosts():
@@ -78,3 +79,11 @@ def test_gemma_single_string_limitations_are_preserved(monkeypatch):
     assert candidate['limitations'] == ['Full-suite compatibility remains unverified.']
     assert candidate['recommendation_source'] == 'gemma4'
     assert candidate['verification_supported'] is False
+
+
+def test_execution_records_actual_arguments(tmp_path):
+    command = [sys.executable, '-c', 'print("observed execution")']
+    result = _execute(command, tmp_path)
+    assert result['status'] == 'passed'
+    assert result['command'] == command
+    assert 'observed execution' in result['full_log']
