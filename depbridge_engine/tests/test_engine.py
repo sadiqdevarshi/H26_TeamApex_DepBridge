@@ -3,6 +3,8 @@ import pytest
 from depbridge_engine.engine import github_url, declarations, usages, add_ai
 from depbridge_engine.engine import _generate_with_retry
 from types import SimpleNamespace
+import json
+import sys
 
 
 def test_url_rejects_credentials_options_and_other_hosts():
@@ -55,3 +57,24 @@ def test_authentication_error_is_not_retried():
     with pytest.raises(RuntimeError):
         _generate_with_retry(client, 'gemma-4-test', 'test')
     assert len(calls) == 1
+
+
+def test_gemma_single_string_limitations_are_preserved(monkeypatch):
+    monkeypatch.setenv('GEMINI_API_KEY', 'unit-test-placeholder')
+    monkeypatch.setenv('GEMMA_MODEL', 'gemma-4-26b-a4b-it')
+    proposal = {'finding_id': 'example', 'rationale': 'Review observed usage.',
+                'migration_steps': ['Change the import.'], 'suggested_checks': ['Run the unchanged checks.'],
+                'limitations': 'Full-suite compatibility remains unverified.'}
+    response = SimpleNamespace(text='```json\n' + json.dumps({'proposals': [proposal]}) + '\n```')
+    monkeypatch.setattr('depbridge_engine.engine._generate_with_retry', lambda *args: response)
+    fake_client = lambda **kwargs: SimpleNamespace()
+    monkeypatch.setitem(sys.modules, 'google.genai', SimpleNamespace(Client=fake_client))
+    monkeypatch.setitem(sys.modules, 'google', SimpleNamespace(genai=SimpleNamespace(Client=fake_client)))
+    findings = [{'finding_id': 'example', 'dependency_name': 'appdirs', 'evidence': [], 'usage': [],
+                 'candidates': [{'replacement_name': 'platformdirs', 'verification_supported': False}]}]
+    result = add_ai(findings)
+    assert result['state'] == 'completed'
+    candidate = findings[0]['candidates'][0]
+    assert candidate['limitations'] == ['Full-suite compatibility remains unverified.']
+    assert candidate['recommendation_source'] == 'gemma4'
+    assert candidate['verification_supported'] is False

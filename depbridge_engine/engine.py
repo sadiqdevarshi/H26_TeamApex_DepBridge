@@ -180,6 +180,10 @@ def add_ai(findings):
             if not isinstance(p.get("rationale"), str) or not p["rationale"].strip():
                 raise ValueError("Model omitted a rationale")
             for field in ("migration_steps", "suggested_checks", "limitations"):
+                # Models sometimes express a single item as a sentence. Preserve
+                # that actual content while normalizing the API's list shape.
+                if isinstance(p.get(field), str) and p[field].strip():
+                    p[field] = [p[field].strip()]
                 if not isinstance(p.get(field), list) or not all(isinstance(x, str) for x in p[field]):
                     raise ValueError(f"Invalid model field: {field}")
         for finding in findings:
