@@ -40,6 +40,7 @@ class ControlledEngine:
         if self.analysis_gate:
             assert self.analysis_gate.wait(10)
         (work_dir / "repo").mkdir()
+        (work_dir / "repo" / "LICENSE").write_bytes(b"Controlled test target license\n")
         return dict(repository=dict(revision="a" * 40), outcome="partial",
             environment=dict(python_version="3.12.10", platform="controlled-test-environment"),
             coverage=dict(scanned_files=1, excluded_files=0, limitations=["Controlled service test; no real repository was analyzed."]),
@@ -145,6 +146,7 @@ def test_api_export_patch_ids_and_evidence(tmp_path):
             names = archive.namelist()
             assert all(not name.startswith("/") and ".." not in Path(name).parts for name in names)
             assert {"analysis.json", "report.html", "REPRODUCE.md", "manifest.json", "provenance.json"} <= set(names)
+            assert archive.read("third_party/target-LICENSE") == b"Controlled test target license\n"
             assert f"patches/{verification_id}.diff" in names
             assert b"<script>" not in archive.read("report.html")
             assert b"&lt;script&gt;" in archive.read("report.html")

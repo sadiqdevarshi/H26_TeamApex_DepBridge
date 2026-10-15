@@ -2,11 +2,11 @@
 
 ## Latest integration checkpoint
 
-Engine `e78c3f1` and backup UI `fdfd236` were merged through Git into `service`. The primary `Frontend` branch was not merged; local and remote `main` remain at `49ee9f5`. The backup is selected with `DEPBRIDGE_FRONTEND_DIR=demo_frontend` for local PowerShell and `/app/demo_frontend` inside the container. Service and engine checks now pass **22 tests**.
+Engine `e78c3f1` and backup UI `fdfd236` were merged through Git into `service`. The primary `Frontend` branch was not merged. The backup is selected with `DEPBRIDGE_FRONTEND_DIR=demo_frontend` for local PowerShell and `/app/demo_frontend` inside the container. The user subsequently authorized finalizing and publishing this tested local integration to `main`, with remaining model/deployment gaps disclosed. Test counts below describe their recorded checkpoints; final checks are reported with the release commit.
 
 A new analysis `ana_4489bda41f1a45598b5170f085ea18bd` was submitted from `/static/start.html` and resolved LinkWatch revision `f52f3930c8e7c33d934ccf614955a38e26984bd5`. Its new comparison `ver_b6050cc9326e4f2ebcbdb17887e5fa8c` completed as `supported` for the selected installations and four focused cache checks. Capsule and patch downloads succeeded through the actual browser UI. The capsule contains actual argument vectors in `commands.json` and the captured generated runner. The report shows the real partial state and model-unavailable message; it does not substitute mock data.
 
-**Full live Gemma acceptance remains blocked:** this machine has no configured `GEMINI_API_KEY` or `GOOGLE_API_KEY`. The new analysis is explicitly `partial`, `ai.state=not_run`, with reference recipes. The automated acceptance command fails its model preflight honestly. A further new analysis and comparison with an actual completed model call is required before declaring the entire workflow passed or considering a merge to `main`.
+**Full live Gemma acceptance remains blocked:** this machine has no configured `GEMINI_API_KEY` or `GOOGLE_API_KEY`. The new analysis is explicitly `partial`, `ai.state=not_run`, with reference recipes. The automated acceptance command fails its model preflight honestly. A further new analysis and comparison with an actual completed model call is required before declaring the entire live model workflow passed. Publication of the local prototype does not change that evidence boundary.
 
 Deployment includes an IP-only server template (`deployment/service.env.example`), a configurable container frontend directory, and a Docker build check for both backup HTML files. Actual server secrets stay outside Git. No DigitalOcean deployment or container image build is claimed.
 

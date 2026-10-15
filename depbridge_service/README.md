@@ -69,10 +69,10 @@ Service tests use explicitly controlled test engines to validate request/state/e
 
 ## Final integration acceptance
 
-After the frontend teammate confirms their pushed branch and it is merged, restart the service with the model key configured server-side. Run this in a second local PowerShell window:
+The integrated backup UI is available now. Restart the service with the model key configured server-side, then run this in a second local PowerShell window:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check --start-path /static/start.html
 ```
 
-This creates a **new** analysis and comparison, requires actual completed Gemma output, checks the same-origin report/assets, downloads capsule/patch files, and validates manifest hashes, recorded command arguments and the captured runner. Results are saved under a fresh ignored `.depbridge/acceptance/` directory. Missing model configuration/frontend, provider errors, unsupported comparisons or incomplete downloads fail honestly; existing output directories are not overwritten. Browser rendering still needs a visual check. Keep `main` unchanged until this complete workflow passes.
+This creates a **new** analysis and comparison, requires actual completed Gemma output, checks the same-origin report/assets, downloads capsule/patch files, and validates manifest hashes, recorded command arguments and the captured runner. Results are saved under a fresh ignored `.depbridge/acceptance/` directory. Missing model configuration/frontend, provider errors, unsupported comparisons or incomplete downloads fail honestly; existing output directories are not overwritten. Browser rendering still needs a visual check. The user authorized release of the tested local integration with remaining model/deployment gaps disclosed; publication to `main` does not imply this full acceptance check passed.

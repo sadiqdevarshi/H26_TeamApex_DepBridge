@@ -70,6 +70,15 @@ def build_capsule(service, analysis_id):
                 ai=public["ai"], service_package_versions=record["_service_versions"],
                 limitations=["Service package versions describe the service, not the target verification environment."])),
         }
+        # Preserve target attribution alongside redistributed excerpts and patch context.
+        repository_dir = service.settings.data_dir / "jobs" / analysis_id / "repo"
+        if repository_dir.is_dir() and not repository_dir.is_symlink():
+            for name in ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING", "NOTICE"):
+                source = repository_dir / name
+                if (source.is_file() and not source.is_symlink()
+                        and source.resolve().parent == repository_dir.resolve()
+                        and source.stat().st_size <= 128 * 1024):
+                    entries[f"third_party/target-{name}"] = source.read_bytes()
         for index, supplied in enumerate(record["_artifacts"]):
             path = (service.settings.data_dir / supplied).resolve()
             if not path.is_relative_to(service.settings.data_dir) or not path.is_file() or path.is_symlink():

@@ -4,7 +4,7 @@ This is deployment setup, not a claim that a Droplet has been provisioned. No se
 
 ## Local Windows PowerShell
 
-Run from the repository Git root, on `service`:
+Run from the repository Git root. The finalized local prototype is published on `main`; integration history remains on `service`:
 
 ```powershell
 Get-Location
@@ -24,10 +24,10 @@ The service does not automatically load `.env`. Set environment variables in Pow
 The following commands run over SSH on the DigitalOcean Droplet, **not in local PowerShell**. Use a Droplet with enough disk for clones and verification environments; the example limits the application container to 2 GiB RAM and two CPUs. Install Docker Engine and the Compose plugin using Docker's official Ubuntu instructions. Ensure Git is installed.
 
 ```sh
-git clone --branch service https://github.com/sadiqdevarshi/H26_TeamApex_DepBridge.git /opt/depbridge
+git clone --branch main https://github.com/sadiqdevarshi/H26_TeamApex_DepBridge.git /opt/depbridge
 cd /opt/depbridge
 sudo install -d -m 700 /etc/depbridge
-sudo install -m 600 deployment/service.env.example /etc/depbridge/service.env
+sudo test -e /etc/depbridge/service.env || sudo install -m 600 deployment/service.env.example /etc/depbridge/service.env
 sudoedit /etc/depbridge/service.env
 ```
 
@@ -61,7 +61,7 @@ Compose uses `${DEPBRIDGE_FRONTEND_DIR:-/app/demo_frontend}` rather than hardcod
 ```sh
 # DigitalOcean server only: update after reviewed Git integration
 cd /opt/depbridge
-git pull --ff-only origin service
+git pull --ff-only origin main
 sudo docker compose --env-file /etc/depbridge/service.env -f deployment/compose.yaml up -d --build
 ```
 

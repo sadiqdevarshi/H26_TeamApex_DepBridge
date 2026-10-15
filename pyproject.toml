@@ -1,11 +1,14 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "depbridge"
 version = "0.1.0"
 description = "Dependency migration service, evidence capsules, and thin CLI"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "fastapi>=0.115,<1",
