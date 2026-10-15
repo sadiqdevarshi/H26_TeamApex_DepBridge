@@ -16,6 +16,7 @@ from depbridge_service.app import create_app
 from depbridge_service.config import Settings
 from depbridge_service.engine import EngineAdapter
 from depbridge_service.models import AnalysisResult, VerificationResult
+from depbridge_service.integration_check import check_capsule, main as acceptance_main
 from depbridge_service.service import Service, artifact_path
 
 
@@ -299,3 +300,40 @@ def test_adapter_normalizes_pushed_engine_shapes(tmp_path, monkeypatch):
     assert result.error.code == "verification_incomplete"
     assert result.environment.candidate_dependency_version == "4.0"
     assert "sourcepath" in raw["findings"][0]["evidence"][0]  # Adapter does not mutate engine-owned data.
+
+
+def test_capsule_preserves_recorded_commands_and_generated_runner(tmp_path):
+    class RecordedCommandsEngine(ControlledEngine):
+        def analyze_repository(self, *args):
+            result = super().analyze_repository(*args)
+            result["ai"] = dict(state="completed", model_name="controlled-test-only", model_version="controlled-test-only")
+            return result
+
+        def verify_candidate(self, *args):
+            result = super().verify_candidate(*args)
+            runner = args[3] / "check_cache.py"
+            runner.write_text("# controlled test runner, not an actual LinkWatch execution\n", encoding="utf-8")
+            for check in result["checks"]:
+                for side in ("original", "candidate"):
+                    check[side]["command"] = ["test-only-python", str(runner)]
+            return result
+
+    with TestClient(create_app(settings(tmp_path), RecordedCommandsEngine())) as client:
+        analysis_id = create(client)
+        record = poll(client, analysis_id)
+        verification_id = client.post(f"/api/analyses/{analysis_id}/verifications", json=pair(record)).json()["verification_id"]
+        record = poll(client, analysis_id, verification_id)
+        assert not any("command reproduction is incomplete" in line for line in record["verifications"][0]["limitations"])
+        content = client.get(f"/api/analyses/{analysis_id}/capsule.zip").content
+        exported = check_capsule(content, analysis_id, verification_id)
+        assert exported["verifications"][0]["checks"][0]["original"]["command"][0] == "test-only-python"
+        with ZipFile(BytesIO(content)) as archive:
+            runner_name = next(name for name in archive.namelist() if name.endswith("-check_cache.py"))
+            assert archive.read(runner_name).startswith(b"# controlled test runner")
+
+
+def test_acceptance_preserves_existing_output_directory(tmp_path, capsys):
+    saved = tmp_path / "summary.json"
+    saved.write_text("existing result", encoding="utf-8")
+    assert acceptance_main(["--output", str(tmp_path)]) == 1
+    assert saved.read_text(encoding="utf-8") == "existing result"

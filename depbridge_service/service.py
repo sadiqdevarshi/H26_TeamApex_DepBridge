@@ -61,7 +61,8 @@ def artifact_path(root: Path, supplied: str):
     relative = resolved.relative_to(root)
     if any(p.startswith(".") or p in {"repo", "secrets"} for p in relative.parts):
         raise ValueError("Hidden files and repository files cannot be exported")
-    if resolved.suffix.lower() not in {".txt", ".log", ".json", ".diff", ".patch", ".md"}:
+    generated_runner = resolved.parent == root and resolved.name == "check_cache.py"
+    if resolved.suffix.lower() not in {".txt", ".log", ".json", ".diff", ".patch", ".md"} and not generated_runner:
         raise ValueError("Only explicit text evidence artifacts can be exported")
     if not resolved.is_file() or resolved.stat().st_size > 10 * 1024 * 1024:
         raise ValueError("Artifact is absent or exceeds 10 MiB")
@@ -353,6 +354,12 @@ class Service:
             # Retain the full engine-supplied check record before capping API excerpts.
             (output / "execution-record.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
             paths.append("execution-record.json")
+            # Retain the actual generated runner referenced by recorded command arguments.
+            # Restrict this exception to the known engine runner directly inside output_dir.
+            runner = output / "check_cache.py"
+            if runner.is_file() and any(str(runner) in (check[side].get("command") or [])
+                    for check in result["checks"] for side in ("original", "candidate")):
+                paths.append("check_cache.py")
             if patch_path:
                 if Path(patch_path).suffix.lower() not in {".diff", ".patch"}:
                     raise ValueError("Patch must be a .diff or .patch artifact")

@@ -46,14 +46,24 @@ def build_capsule(service, analysis_id):
             "1. Inspect analysis.json for the exact repository revision, observed environment, evidence sources, model provenance, and limitations.\n"
             "2. Clone the recorded public repository in a separate workspace and check out its recorded exact revision. If null, reproduction is incomplete.\n"
             "3. Use the Python and package versions actually recorded by the engine, not the service package list.\n"
-            "4. Review each original/candidate check's command and full logs under artifacts/. Missing commands/logs are an explicit reproduction gap.\n"
+            "4. Review commands.json for the engine's actual argument vectors and the full logs under artifacts/. Missing commands/logs are an explicit reproduction gap.\n"
             "5. Review patches before applying them on your own branch. A patch can accompany an inconclusive or failed comparison.\n"
             "6. Repeat the recorded checks in isolated environments. No upstream repository was modified by this export.\n\n"
             "No generic test command is presented as an executed check. Unsupported platforms and unexecuted checks remain unverified.\n"
+            "Recorded commands contain original machine paths. Recreate the original/candidate environments and substitute your local paths before rerunning them.\n"
+            "When captured, artifacts/*-check_cache.py is the exact engine-generated runner referenced by the recorded focused-check command.\n"
+            "Focused rows can describe assertions from the same parent invocation; repeated arguments do not imply separate full-suite runs.\n"
         )
+        commands = [dict(verification_id=verification["verification_id"], check_id=check["check_id"],
+                         check_name=check["name"], scope=check["scope"], side=side,
+                         command=check[side].get("command"), status=check[side]["status"],
+                         exit_code=check[side]["exit_code"])
+                    for verification in public["verifications"] for check in verification["checks"]
+                    for side in ("original", "candidate")]
         entries = {
             "analysis.json": encode(public), "findings.json": encode(public["findings"]),
             "verifications.json": encode(public["verifications"]), "report.md": report.encode(),
+            "commands.json": encode(dict(schema_version="1.0", records=commands)),
             "report.html": html.encode(), "REPRODUCE.md": reproduction.encode(),
             "provenance.json": encode(dict(schema_version="1.0", exported_at=exported_at,
                 analysis_updated_at=record["updated_at"], repository=repository, environment=public["environment"],

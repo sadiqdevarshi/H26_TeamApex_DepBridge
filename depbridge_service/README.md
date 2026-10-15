@@ -49,6 +49,8 @@ Use `--server https://YOUR_HOST` **before** the CLI subcommand, or set `DEPBRIDG
 
 State survives restarts. Jobs interrupted by restart become `failed/service_restarted`; they are not automatically re-executed. A completed initial analysis may be success or partial. Capsule includes JSON, Markdown, escaped standalone HTML, provenance, manifest with SHA-256 hashes, explicit full-log artifacts and patches where produced. No capsule is fabricated for a failed scan.
 
+New engine runs preserve actual argument vectors in both verification records and `commands.json`. Capsules also include the actual generated cache-check runner when referenced by recorded commands. Paths are recorded as executed; recreate local environments and substitute local paths before reproducing another machine's run.
+
 Only `rishrek/LinkWatch` is enabled by default. `DEPBRIDGE_ALLOWED_REPOSITORIES` can be a comma-separated explicit allowlist; unrestricted repository execution is outside the prototype scope. Configure `DEPBRIDGE_PUBLIC_BASE_URL` explicitly for deployment, rather than trusting a caller-controlled Host header. Store all model keys in server environment variables. The service does not call the model itself or infer successful model access from a configured key.
 
 The engine API and return contract is in [ENGINE_CONTRACT.md](ENGINE_CONTRACT.md). Deployment instructions are in [../deployment/README.md](../deployment/README.md). No actual repository analysis, model request, compatibility check or cloud deployment is claimed until performed with the real engine/server.
@@ -61,3 +63,13 @@ The engine API and return contract is in [ENGINE_CONTRACT.md](ENGINE_CONTRACT.md
 ```
 
 Service tests use explicitly controlled test engines to validate request/state/export behavior; they are not evidence of LinkWatch migration compatibility.
+
+## Final integration acceptance
+
+After the frontend teammate confirms their pushed branch and it is merged, restart the service with the model key configured server-side. Run this in a second local PowerShell window:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m depbridge_service.integration_check
+```
+
+This creates a **new** analysis and comparison, requires actual completed Gemma output, checks the same-origin report/assets, downloads capsule/patch files, and validates manifest hashes, recorded command arguments and the captured runner. Results are saved under a fresh ignored `.depbridge/acceptance/` directory. Missing model configuration/frontend, provider errors, unsupported comparisons or incomplete downloads fail honestly; existing output directories are not overwritten. Browser rendering still needs a visual check. Keep `main` unchanged until this complete workflow passes.
