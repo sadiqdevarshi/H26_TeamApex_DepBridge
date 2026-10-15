@@ -72,10 +72,12 @@ def _execute(args, cwd, timeout=90):
         result = subprocess.run(args, cwd=cwd, env=_environment(), capture_output=True, text=True, timeout=timeout)
         log = result.stdout + result.stderr
         return {"status": "passed" if result.returncode == 0 else "failed", "exit_code": result.returncode,
+                "command": [str(arg) for arg in args],
                 "duration_ms": int((time.monotonic()-start)*1000), "log_excerpt": log[-6000:],
                 "log_truncated": len(log) > 6000, "full_log": log}
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "blocked", "exit_code": None, "duration_ms": int((time.monotonic()-start)*1000),
+                "command": [str(arg) for arg in args],
                 "log_excerpt": f"{type(exc).__name__}: {exc}", "log_truncated": False, "full_log": str(exc)}
 
 
@@ -170,6 +172,7 @@ def verify_candidate(repository_dir, finding, candidate, output_dir):
             value = sides[side]["values"].get(name)
             parent = sides[side].get("behavior", sides[side]["installation"])
             row[side] = {"status": ("passed" if value["passed"] else "failed") if value else "blocked",
+                         "command": parent["command"],
                          "exit_code": parent["exit_code"], "duration_ms": parent["duration_ms"],
                          "log_excerpt": json.dumps(value) if value else parent["log_excerpt"], "log_truncated": False}
             values.append(value.get("value") if value and value["passed"] else None)
